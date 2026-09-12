@@ -15,7 +15,7 @@ export function TemperatureBadge({ value }: { value: "Hot" | "Warm" | "Cold" }) 
 }
 
 export function SentimentBadge({ value }: { value: string | null | undefined }) {
-  if (!value) return <span className="text-xs text-slate-300">—</span>;
+  if (!value) return <span className="text-xs text-slate-400">—</span>;
   return <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${SENTIMENT_STYLES[value] ?? SENTIMENT_STYLES.NEUTRAL}`}>{value.toLowerCase()}</span>;
 }
 

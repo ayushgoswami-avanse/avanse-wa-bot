@@ -139,11 +139,11 @@ function Bubble({ entry, onReply }: { entry: ChatEntry; onReply: (id: string, ti
             <div className="flex flex-col gap-2 pt-1">
               {p.sections.map((s, si) => (
                 <div key={si}>
-                  <div className="text-[10px] uppercase text-slate-400">{s.title}</div>
+                  <div className="text-[10px] uppercase text-slate-500">{s.title}</div>
                   {s.rows.map((r) => (
                     <button key={r.id} onClick={() => onReply(r.id, r.title)} className="w-full text-left text-[#075e54] border border-[#075e54]/30 rounded-md px-2 py-1 text-xs hover:bg-[#075e54]/5 mt-1">
                       {r.title}
-                      {r.description && <div className="text-slate-400 text-[10px]">{r.description}</div>}
+                      {r.description && <div className="text-slate-500 text-[10px]">{r.description}</div>}
                     </button>
                   ))}
                 </div>

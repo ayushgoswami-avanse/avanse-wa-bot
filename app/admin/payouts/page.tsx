@@ -57,7 +57,7 @@ export default async function PayoutsPage() {
             ))}
             {payouts.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-6 text-center text-slate-400">
+                <td colSpan={6} className="px-4 py-6 text-center text-slate-500">
                   No payouts yet — simulate a disbursement above.
                 </td>
               </tr>

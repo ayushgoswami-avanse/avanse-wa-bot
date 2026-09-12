@@ -5,6 +5,7 @@ import { parseInboundWebhook } from "@/lib/whatsapp/client";
 import { extractClickToken } from "@/lib/attribution";
 import { findOrCreateContact } from "@/lib/contactService";
 import { processInboundWithDebounce } from "@/lib/messaging/debounce";
+import { publishToWebMirror } from "@/lib/webMirror/bus";
 
 /** INT-01 / FR-B01 — Meta webhook receiver. Validates signature, acknowledges within
  * 500ms (NFR-02), enqueues processing rather than blocking the response on the LLM call.
@@ -66,6 +67,9 @@ async function processWebhookPayload(payload: unknown): Promise<void> {
         deliveryStatus: "received",
       },
     });
+
+    // Live-refresh signal for the agent/admin console (FR-H — thread should update without a manual reload).
+    publishToWebMirror(contact.waId, { type: "activity" });
 
     await processInboundWithDebounce(contact.id, {
       metaMessageId: msg.metaMessageId,

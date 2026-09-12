@@ -30,7 +30,7 @@ export default function SalesBriefCard({
             </div>
           )}
         </div>
-        <div className="font-mono text-xs text-slate-400 shrink-0">{waId}</div>
+        <div className="font-mono text-xs text-slate-500 shrink-0">{waId}</div>
       </div>
 
       {brief.flags.length > 0 && (
@@ -64,7 +64,7 @@ export default function SalesBriefCard({
 function BriefRow({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <span className="text-slate-400 text-xs">{label}: </span>
+      <span className="text-slate-500 text-xs">{label}: </span>
       <span className="text-slate-800">{value}</span>
     </div>
   );

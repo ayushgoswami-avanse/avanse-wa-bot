@@ -10,7 +10,7 @@ export default function PrivacyPolicyPage() {
         <div className="mb-8">
           <div className="text-xs font-medium text-brand-teal-dark uppercase tracking-wide mb-1">Digitalytics, IIM Ranchi</div>
           <h1 className="text-2xl font-semibold text-slate-900">Privacy Policy</h1>
-          <p className="text-sm text-slate-400 mt-1">Last updated: 13 September 2026</p>
+          <p className="text-sm text-slate-500 mt-1">Last updated: 13 September 2026</p>
         </div>
 
         <div className="text-sm text-slate-700 space-y-6 leading-relaxed">

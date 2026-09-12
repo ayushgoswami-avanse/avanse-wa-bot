@@ -65,7 +65,7 @@ export default async function AdminOverviewPage() {
                 <span className="w-8 text-xs text-slate-500 text-right">{count}</span>
               </div>
             ))}
-            {topPersonas.length === 0 && <p className="text-sm text-slate-400">No leads yet.</p>}
+            {topPersonas.length === 0 && <p className="text-sm text-slate-500">No leads yet.</p>}
           </div>
         </div>
       </div>
@@ -100,7 +100,7 @@ export default async function AdminOverviewPage() {
             </div>
           ))}
           {Object.keys(metrics.attributionConfidenceMix.counts).length === 0 && (
-            <p className="text-sm text-slate-400">No contacts yet — scan a QR code or open the web chat to generate one.</p>
+            <p className="text-sm text-slate-500">No contacts yet — scan a QR code or open the web chat to generate one.</p>
           )}
         </div>
       </div>

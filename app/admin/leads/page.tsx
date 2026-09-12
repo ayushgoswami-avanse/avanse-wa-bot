@@ -84,13 +84,13 @@ export default async function LeadsPage({
                     <Avatar name={l.name || l.waId} />
                     <div>
                       <div className="font-mono text-xs text-slate-600 group-hover:text-brand-teal-dark transition-colors">{l.waId}</div>
-                      {l.name && <div className="text-xs text-slate-400">{l.name}</div>}
+                      {l.name && <div className="text-xs text-slate-500">{l.name}</div>}
                     </div>
                   </Link>
                 </td>
                 <td className="px-4 py-2.5">
                   <div className="font-medium text-slate-900">{l.personaLabel}</div>
-                  <div className="text-xs text-slate-400">{l.cohortLabel}</div>
+                  <div className="text-xs text-slate-500">{l.cohortLabel}</div>
                 </td>
                 <td className="px-4 py-2.5">
                   {l.segmentTags ? (
@@ -117,7 +117,7 @@ export default async function LeadsPage({
             ))}
             {leads.length === 0 && (
               <tr>
-                <td colSpan={9} className="px-4 py-10 text-center text-slate-400">
+                <td colSpan={9} className="px-4 py-10 text-center text-slate-500">
                   No leads match this filter.
                 </td>
               </tr>

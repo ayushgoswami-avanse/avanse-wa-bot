@@ -11,7 +11,8 @@ import type { OutboundPayload } from "@/lib/whatsapp/types";
 
 export type WebMirrorEvent =
   | { type: "outbound"; payload: OutboundPayload }
-  | { type: "typing" };
+  | { type: "typing" }
+  | { type: "activity" };
 
 const bus = (globalThis as unknown as { __webMirrorBus?: EventEmitter }).__webMirrorBus ??
   new EventEmitter().setMaxListeners(0);

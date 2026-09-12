@@ -16,7 +16,7 @@ export default async function FunnelPage() {
           <div key={j.journey} className="bg-white rounded-lg border border-slate-200 p-5">
             <div className="text-xs text-slate-500 uppercase">{j.journey}</div>
             <div className="text-2xl font-semibold text-slate-900">{j.count}</div>
-            <div className="text-xs text-slate-400">{totalContacts > 0 ? `${((j.count / totalContacts) * 100).toFixed(0)}% of contacts` : ""}</div>
+            <div className="text-xs text-slate-500">{totalContacts > 0 ? `${((j.count / totalContacts) * 100).toFixed(0)}% of contacts` : ""}</div>
           </div>
         ))}
       </div>
@@ -35,7 +35,7 @@ export default async function FunnelPage() {
               </div>
             </div>
           ))}
-          {byCollege.length === 0 && <p className="text-sm text-slate-400">No attributed contacts yet.</p>}
+          {byCollege.length === 0 && <p className="text-sm text-slate-500">No attributed contacts yet.</p>}
         </div>
       </div>
     </div>

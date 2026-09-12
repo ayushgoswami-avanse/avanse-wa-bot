@@ -26,7 +26,7 @@ export default function AdminNav() {
             key={item.href}
             href={item.href}
             className={`flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors ${
-              active ? "bg-white/10 text-white font-medium" : "text-slate-300 hover:bg-white/5 hover:text-white"
+              active ? "bg-white/10 text-white font-medium" : "text-slate-400 hover:bg-white/5 hover:text-white"
             }`}
           >
             <span className={`text-xs w-4 text-center ${active ? "text-brand-teal" : "text-slate-500"}`}>{item.icon}</span>

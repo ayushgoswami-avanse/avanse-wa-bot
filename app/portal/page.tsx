@@ -50,7 +50,7 @@ export default async function PortalPage({ searchParams }: { searchParams: Promi
         <dt className="text-slate-500">Attribution confidence</dt>
         <dd className="col-span-2 font-medium text-slate-900">{claims.attributionTier ?? "—"}</dd>
       </dl>
-      <p className="text-xs text-slate-400 mt-8">
+      <p className="text-xs text-slate-500 mt-8">
         In production this profile pre-fills the real DIY application form (FR-F01). This stub exists because DIY
         does not exist in this POC — see .ai/engineering/tech-debt.md.
       </p>

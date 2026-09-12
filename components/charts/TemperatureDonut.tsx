@@ -12,7 +12,7 @@ export function TemperatureDonut({ hot, warm, cold }: { hot: number; warm: numbe
   ].filter((d) => d.value > 0);
 
   if (data.length === 0) {
-    return <div className="h-48 flex items-center justify-center text-sm text-slate-400">No leads yet.</div>;
+    return <div className="h-48 flex items-center justify-center text-sm text-slate-500">No leads yet.</div>;
   }
 
   return (

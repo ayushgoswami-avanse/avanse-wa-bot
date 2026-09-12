@@ -24,12 +24,12 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             </div>
             <div>
               <div className="text-white font-semibold text-sm leading-tight">Avanse SEC</div>
-              <div className="text-[11px] text-slate-400">Admin console</div>
+              <div className="text-[11px] text-slate-500">Admin console</div>
             </div>
           </div>
           <AdminNav />
           <div className="mt-10 pt-4 border-t border-white/10">
-            <div className="text-xs text-slate-400 mb-2">{session.displayName}</div>
+            <div className="text-xs text-slate-500 mb-2">{session.displayName}</div>
             <LogoutButton />
           </div>
         </aside>

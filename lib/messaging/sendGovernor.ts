@@ -140,6 +140,8 @@ export async function sendOutboundMessage(params: {
       return { sent: false, reason: `Meta send failed: ${result.error}` };
     }
     metaMessageId = result.metaMessageId;
+    // Live-refresh signal for any other open agent/admin tab on this thread.
+    publishToWebMirror(waId, { type: "activity" });
   }
 
   await prisma.message.create({

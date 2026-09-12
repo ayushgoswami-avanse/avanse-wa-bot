@@ -23,7 +23,7 @@ export default function WhatsAppWebhookSetup() {
     <div className="bg-white rounded-lg border border-slate-200 p-4 space-y-3">
       <div>
         <div className="text-sm font-medium text-slate-900">WhatsApp webhook setup</div>
-        <div className="text-xs text-slate-400">
+        <div className="text-xs text-slate-500">
           Subscribes this app to the WABA and points Meta&apos;s webhook at this deployment. Re-run after any redeploy that changes the URL.
         </div>
       </div>

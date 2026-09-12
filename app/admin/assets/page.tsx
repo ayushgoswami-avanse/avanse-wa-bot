@@ -47,7 +47,7 @@ export default async function AssetsPage() {
             ))}
             {assets.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-4 py-6 text-center text-slate-400">
+                <td colSpan={7} className="px-4 py-6 text-center text-slate-500">
                   No assets yet.
                 </td>
               </tr>

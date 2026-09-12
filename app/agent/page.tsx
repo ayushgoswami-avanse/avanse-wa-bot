@@ -106,7 +106,7 @@ export default async function AgentThreadListPage({
                         {handover.status === "QUEUED" ? "Waiting" : "Claimed"}
                       </span>
                     ) : (
-                      <span className="text-slate-300">—</span>
+                      <span className="text-slate-400">—</span>
                     )}
                   </td>
                 </tr>
@@ -114,7 +114,7 @@ export default async function AgentThreadListPage({
             })}
             {withWindow.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-4 py-10 text-center text-slate-400">
+                <td colSpan={7} className="px-4 py-10 text-center text-slate-500">
                   No conversations match this filter.
                 </td>
               </tr>

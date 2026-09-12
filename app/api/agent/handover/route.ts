@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
+import { publishToWebMirror } from "@/lib/webMirror/bus";
 
 export async function POST(req: NextRequest) {
   const session = await getSession();
@@ -22,6 +23,9 @@ export async function POST(req: NextRequest) {
   } else {
     return NextResponse.json({ error: "invalid action" }, { status: 400 });
   }
+
+  const contact = await prisma.contact.findUnique({ where: { id: contactId } });
+  if (contact) publishToWebMirror(contact.waId, { type: "activity" });
 
   return NextResponse.json({ ok: true });
 }

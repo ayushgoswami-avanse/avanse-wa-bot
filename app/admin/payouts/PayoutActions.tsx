@@ -14,7 +14,7 @@ export default function PayoutActions({ id, status }: { id: string; status: stri
     router.refresh();
   }
 
-  if (status === "PAID" || status === "CLAWED_BACK") return <span className="text-xs text-slate-400">—</span>;
+  if (status === "PAID" || status === "CLAWED_BACK") return <span className="text-xs text-slate-500">—</span>;
 
   return (
     <div className="flex gap-2 text-xs">

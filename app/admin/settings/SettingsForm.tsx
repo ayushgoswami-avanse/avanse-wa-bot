@@ -38,7 +38,7 @@ export default function SettingsForm({ config }: { config: Record<ConfigKey, str
         <div key={f.key} className="p-4 flex items-center justify-between gap-4">
           <div>
             <div className="text-sm font-medium text-slate-900">{f.label}</div>
-            {f.note && <div className="text-xs text-slate-400">{f.note}</div>}
+            {f.note && <div className="text-xs text-slate-500">{f.note}</div>}
           </div>
           <div className="flex items-center gap-2">
             {f.type === "toggle" && (
@@ -78,7 +78,7 @@ export default function SettingsForm({ config }: { config: Record<ConfigKey, str
                 className="rounded-md border border-slate-300 px-2 py-1 text-sm w-64"
               />
             )}
-            {saving === f.key && <span className="text-xs text-slate-400">saving…</span>}
+            {saving === f.key && <span className="text-xs text-slate-500">saving…</span>}
           </div>
         </div>
       ))}

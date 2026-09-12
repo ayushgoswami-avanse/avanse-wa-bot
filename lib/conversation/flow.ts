@@ -39,7 +39,10 @@ function containsAny(text: string, keywords: string[]): boolean {
 }
 
 async function send(contact: Contact, payload: OutboundPayload) {
-  await sendOutboundMessage({ contactId: contact.id, waId: contact.waId, journey: contact.journey, payload });
+  const result = await sendOutboundMessage({ contactId: contact.id, waId: contact.waId, journey: contact.journey, payload });
+  if (!result.sent) {
+    console.error(`[flow] send blocked/failed for contact ${contact.id} (${contact.waId}): ${result.reason}`);
+  }
 }
 
 async function setStage(contactId: string, stage: string, extra: Record<string, unknown> = {}) {

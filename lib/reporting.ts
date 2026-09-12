@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { bandToTemperature } from "@/lib/propensity";
+import { computeCohort } from "@/lib/segmentation";
 
 /** FR-I09 — the seven pilot measurements, computed live from what this POC can actually
  * observe. Two of the seven need real campus/DIY data this environment doesn't have —
@@ -55,6 +56,9 @@ export type LeadRow = {
   interactionSessionCount: number;
   lastSentiment: string;
   destinationOrCourse: string;
+  cohortLabel: string;
+  personaLabel: string;
+  segmentTags: string;
   createdAt: Date;
   lastActiveAt: Date;
 };
@@ -69,23 +73,29 @@ export async function getLeadRows(): Promise<LeadRow[]> {
     include: { messages: { orderBy: { createdAt: "desc" }, take: 1, select: { createdAt: true } } },
   });
 
-  return contacts.map((c) => ({
-    id: c.id,
-    waId: c.waId,
-    name: c.confirmedName ?? c.profileName ?? "",
-    journey: c.journey ?? "Undecided",
-    stage: c.stage,
-    college: c.collegeNameAttributed ?? "",
-    attributionTier: c.attributionTier ?? "Unresolved",
-    leadTemperature: bandToTemperature(c.propensityBand),
-    propensityScore: c.propensityScore,
-    isQualifiedLead: c.isQualifiedLead,
-    interactionSessionCount: c.interactionSessionCount,
-    lastSentiment: c.lastSentiment ?? "",
-    destinationOrCourse: c.destinationCountry ?? c.courseCategory ?? "",
-    createdAt: c.createdAt,
-    lastActiveAt: c.messages[0]?.createdAt ?? c.updatedAt,
-  }));
+  return contacts.map((c) => {
+    const cohort = computeCohort(c);
+    return {
+      id: c.id,
+      waId: c.waId,
+      name: c.confirmedName ?? c.profileName ?? "",
+      journey: c.journey ?? "Undecided",
+      stage: c.stage,
+      college: c.collegeNameAttributed ?? "",
+      attributionTier: c.attributionTier ?? "Unresolved",
+      leadTemperature: bandToTemperature(c.propensityBand),
+      propensityScore: c.propensityScore,
+      isQualifiedLead: c.isQualifiedLead,
+      interactionSessionCount: c.interactionSessionCount,
+      lastSentiment: c.lastSentiment ?? "",
+      destinationOrCourse: c.destinationCountry ?? c.courseCategory ?? "",
+      cohortLabel: cohort.cohortLabel,
+      personaLabel: cohort.personaLabel,
+      segmentTags: cohort.segmentTags.join(", "),
+      createdAt: c.createdAt,
+      lastActiveAt: c.messages[0]?.createdAt ?? c.updatedAt,
+    };
+  });
 }
 
 export async function getFunnelByDimension() {

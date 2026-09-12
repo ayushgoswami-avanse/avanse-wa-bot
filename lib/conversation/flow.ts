@@ -11,6 +11,7 @@ import { retrieveInternationalOutcomes, retrieveDomesticOutcomes, formatOutcomes
 import { requestTier1Eligibility, eligibilityDisclaimerText } from "@/lib/eligibility";
 import { mintHandoffToken, syncToProcessioIfGated } from "@/lib/handoff";
 import { touchSession, recordTurnInsights, closeSessionSnapshot } from "@/lib/conversation/sessions";
+import { parseIndianAmount } from "@/lib/parseAmount";
 import { getConfigBool } from "@/lib/config";
 import type { OutboundPayload } from "@/lib/whatsapp/types";
 import resourcesData from "@/data/resources.json";
@@ -339,14 +340,16 @@ async function handleInboundMessageInStage(
     case "ELIGIBILITY_INCOME":
     case "ELIGIBILITY_EMIS":
     case "ELIGIBILITY_AMOUNT": {
-      const amount = Number(text.replace(/[^\d.]/g, ""));
+      // Handles "1 lac", "5k", "2.5 lakhs", "1 crore", not just bare digits — a live
+      // test showed "1 lacs" silently becoming ₹1 with the old digit-only parser.
+      const amount = parseIndianAmount(text);
       const draft = JSON.parse(contact.eligibilityDraftJson ?? "{}") as {
         coApplicantIncome?: number;
         existingEmis?: number;
       };
 
-      if (!Number.isFinite(amount) || amount < 0) {
-        await send(contact, { kind: "text", body: "Please share just the number (e.g. 45000)." });
+      if (amount === null || !Number.isFinite(amount) || amount < 0) {
+        await send(contact, { kind: "text", body: "Please share just the number (e.g. 45000, or 1 lac / 5k)." });
         return;
       }
 

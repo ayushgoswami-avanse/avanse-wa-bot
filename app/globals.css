@@ -1,26 +1,82 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f7fafb;
+  --foreground: #0f1b1c;
+
+  /* Avanse brand palette (sourced from public brand assets, not invented):
+     teal primary, cornflower-blue secondary, deep-teal accent. */
+  --brand-teal: #00aeaf;
+  --brand-teal-dark: #0a7f80;
+  --brand-blue: #4e78f4;
+  --brand-deep: #10847e;
+  --brand-teal-50: #e6f8f8;
+  --brand-teal-100: #ccf1f1;
+  --brand-blue-50: #eef2fe;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-brand-teal: var(--brand-teal);
+  --color-brand-teal-dark: var(--brand-teal-dark);
+  --color-brand-blue: var(--brand-blue);
+  --color-brand-deep: var(--brand-deep);
+  --color-brand-teal-50: var(--brand-teal-50);
+  --color-brand-teal-100: var(--brand-teal-100);
+  --color-brand-blue-50: var(--brand-blue-50);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
 }
+
+/* ---- Motion: a small, consistent vocabulary reused across both consoles ---- */
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.97); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes shimmer {
+  from { background-position: -200% 0; }
+  to { background-position: 200% 0; }
+}
+@keyframes pulse-ring {
+  0% { box-shadow: 0 0 0 0 rgba(0, 174, 175, 0.45); }
+  70% { box-shadow: 0 0 0 8px rgba(0, 174, 175, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(0, 174, 175, 0); }
+}
+
+.animate-fade-in { animation: fade-in 0.35s ease-out both; }
+.animate-slide-up { animation: slide-up 0.35s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.animate-scale-in { animation: scale-in 0.25s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.animate-pulse-ring { animation: pulse-ring 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+
+.stagger-1 { animation-delay: 40ms; }
+.stagger-2 { animation-delay: 80ms; }
+.stagger-3 { animation-delay: 120ms; }
+.stagger-4 { animation-delay: 160ms; }
+.stagger-5 { animation-delay: 200ms; }
+
+.skeleton {
+  background: linear-gradient(90deg, #eef2f2 25%, #f7fafb 37%, #eef2f2 63%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+
+/* Soft brand-tinted scrollbars in the two consoles, without a global reset elsewhere. */
+.brand-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
+.brand-scroll::-webkit-scrollbar-thumb { background: #cfeceb; border-radius: 9999px; }
+.brand-scroll::-webkit-scrollbar-thumb:hover { background: var(--brand-teal); }

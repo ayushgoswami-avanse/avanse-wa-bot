@@ -1,17 +1,7 @@
 import Link from "next/link";
 import { getLeadRows } from "@/lib/reporting";
-
-const TEMP_STYLES: Record<string, string> = {
-  Hot: "bg-red-100 text-red-700",
-  Warm: "bg-amber-100 text-amber-700",
-  Cold: "bg-slate-100 text-slate-500",
-};
-
-const SENTIMENT_STYLES: Record<string, string> = {
-  POSITIVE: "bg-emerald-100 text-emerald-700",
-  NEUTRAL: "bg-slate-100 text-slate-500",
-  NEGATIVE: "bg-red-100 text-red-700",
-};
+import { StatCard } from "@/components/ui/StatCard";
+import { Avatar, TemperatureBadge, SentimentBadge, Tag } from "@/components/ui/Badge";
 
 export default async function LeadsPage({
   searchParams,
@@ -31,7 +21,7 @@ export default async function LeadsPage({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex items-start justify-between gap-4 animate-fade-in">
         <div>
           <h1 className="text-xl font-semibold text-slate-900">Leads</h1>
           <p className="text-sm text-slate-500">
@@ -41,31 +31,22 @@ export default async function LeadsPage({
         </div>
         <a
           href="/api/admin/leads/export"
-          className="rounded-md bg-slate-900 text-white text-sm px-4 py-2 hover:bg-slate-800 shrink-0"
+          className="rounded-lg bg-brand-teal-dark text-white text-sm px-4 py-2 hover:bg-brand-deep transition-colors shadow-sm shrink-0 flex items-center gap-1.5"
         >
-          Download CSV
+          <span>⬇</span> Download CSV
         </a>
       </div>
 
       <div className="grid grid-cols-3 gap-4">
-        <div className="bg-white rounded-lg border border-slate-200 p-4">
-          <div className="text-xs text-red-600 uppercase font-medium">Hot</div>
-          <div className="text-2xl font-semibold text-slate-900">{counts.Hot}</div>
-        </div>
-        <div className="bg-white rounded-lg border border-slate-200 p-4">
-          <div className="text-xs text-amber-600 uppercase font-medium">Warm</div>
-          <div className="text-2xl font-semibold text-slate-900">{counts.Warm}</div>
-        </div>
-        <div className="bg-white rounded-lg border border-slate-200 p-4">
-          <div className="text-xs text-slate-500 uppercase font-medium">Cold</div>
-          <div className="text-2xl font-semibold text-slate-900">{counts.Cold}</div>
-        </div>
+        <StatCard label="Hot" value={counts.Hot} accent="red" index={0} />
+        <StatCard label="Warm" value={counts.Warm} accent="amber" index={1} />
+        <StatCard label="Cold" value={counts.Cold} accent="slate" index={2} />
       </div>
 
-      <div className="flex flex-wrap items-center gap-2 text-sm">
+      <div className="flex flex-wrap items-center gap-2 text-sm animate-fade-in">
         <Link
           href="/admin/leads"
-          className={`px-3 py-1.5 rounded-md ${!persona ? "bg-slate-900 text-white" : "bg-white border border-slate-200 text-slate-600"}`}
+          className={`px-3 py-1.5 rounded-full transition-colors ${!persona ? "bg-brand-teal-dark text-white" : "bg-white border border-slate-200 text-slate-600 hover:border-brand-teal/40"}`}
         >
           All personas ({allLeads.length})
         </Link>
@@ -73,19 +54,18 @@ export default async function LeadsPage({
           <Link
             key={label}
             href={`/admin/leads?persona=${encodeURIComponent(label)}`}
-            className={`px-3 py-1.5 rounded-md ${persona === label ? "bg-slate-900 text-white" : "bg-white border border-slate-200 text-slate-600"}`}
+            className={`px-3 py-1.5 rounded-full transition-colors ${persona === label ? "bg-brand-teal-dark text-white" : "bg-white border border-slate-200 text-slate-600 hover:border-brand-teal/40"}`}
           >
             {label} ({count})
           </Link>
         ))}
       </div>
 
-      <div className="bg-white rounded-lg border border-slate-200 overflow-x-auto">
+      <div className="bg-white rounded-xl border border-slate-200 overflow-x-auto shadow-sm">
         <table className="w-full text-sm whitespace-nowrap">
           <thead className="bg-slate-50 text-slate-500 text-xs uppercase">
             <tr>
               <th className="text-left px-4 py-2">Contact</th>
-              <th className="text-left px-4 py-2">Name</th>
               <th className="text-left px-4 py-2">Persona / Cohort</th>
               <th className="text-left px-4 py-2">Segment tags</th>
               <th className="text-left px-4 py-2">Stage</th>
@@ -97,50 +77,47 @@ export default async function LeadsPage({
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {leads.map((l) => (
-              <tr key={l.id} className="hover:bg-slate-50">
-                <td className="px-4 py-2">
-                  <Link href={`/admin/transcripts/${l.id}`} className="text-blue-600 hover:underline font-mono text-xs">
-                    {l.waId}
+            {leads.map((l, i) => (
+              <tr key={l.id} className="animate-fade-in hover:bg-brand-teal-50/40 transition-colors" style={{ animationDelay: `${Math.min(i, 10) * 25}ms` }}>
+                <td className="px-4 py-2.5">
+                  <Link href={`/admin/transcripts/${l.id}`} className="flex items-center gap-2.5 group">
+                    <Avatar name={l.name || l.waId} />
+                    <div>
+                      <div className="font-mono text-xs text-slate-600 group-hover:text-brand-teal-dark transition-colors">{l.waId}</div>
+                      {l.name && <div className="text-xs text-slate-400">{l.name}</div>}
+                    </div>
                   </Link>
                 </td>
-                <td className="px-4 py-2">{l.name || "—"}</td>
-                <td className="px-4 py-2">
+                <td className="px-4 py-2.5">
                   <div className="font-medium text-slate-900">{l.personaLabel}</div>
                   <div className="text-xs text-slate-400">{l.cohortLabel}</div>
                 </td>
-                <td className="px-4 py-2">
+                <td className="px-4 py-2.5">
                   {l.segmentTags ? (
                     <div className="flex flex-wrap gap-1">
                       {l.segmentTags.split(", ").map((tag) => (
-                        <span key={tag} className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 text-[10px]">
-                          {tag}
-                        </span>
+                        <Tag key={tag}>{tag}</Tag>
                       ))}
                     </div>
                   ) : (
                     "—"
                   )}
                 </td>
-                <td className="px-4 py-2">{l.stage}</td>
-                <td className="px-4 py-2">
-                  <span className={`px-2 py-0.5 rounded text-xs ${TEMP_STYLES[l.leadTemperature]}`}>{l.leadTemperature}</span>
+                <td className="px-4 py-2.5 text-slate-600">{l.stage}</td>
+                <td className="px-4 py-2.5">
+                  <TemperatureBadge value={l.leadTemperature} />
                 </td>
-                <td className="px-4 py-2">{l.interactionSessionCount}</td>
-                <td className="px-4 py-2">
-                  {l.lastSentiment ? (
-                    <span className={`px-2 py-0.5 rounded text-xs ${SENTIMENT_STYLES[l.lastSentiment]}`}>{l.lastSentiment.toLowerCase()}</span>
-                  ) : (
-                    "—"
-                  )}
+                <td className="px-4 py-2.5 text-slate-600">{l.interactionSessionCount}</td>
+                <td className="px-4 py-2.5">
+                  <SentimentBadge value={l.lastSentiment} />
                 </td>
-                <td className="px-4 py-2">{l.isQualifiedLead ? "Yes" : "No"}</td>
-                <td className="px-4 py-2">{new Date(l.lastActiveAt).toLocaleString()}</td>
+                <td className="px-4 py-2.5 text-slate-600">{l.isQualifiedLead ? "Yes" : "No"}</td>
+                <td className="px-4 py-2.5 text-slate-500">{new Date(l.lastActiveAt).toLocaleString()}</td>
               </tr>
             ))}
             {leads.length === 0 && (
               <tr>
-                <td colSpan={10} className="px-4 py-6 text-center text-slate-400">
+                <td colSpan={9} className="px-4 py-10 text-center text-slate-400">
                   No leads match this filter.
                 </td>
               </tr>

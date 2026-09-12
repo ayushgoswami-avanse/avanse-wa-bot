@@ -31,11 +31,19 @@ function LoginForm() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4">
-      <form onSubmit={onSubmit} className="w-full max-w-sm bg-white rounded-xl shadow-sm border border-slate-200 p-8 space-y-5">
-        <div>
-          <h1 className="text-lg font-semibold text-slate-900">SEC Console</h1>
-          <p className="text-sm text-slate-500">Avanse Student Experience Center — admin &amp; agent access</p>
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#0b2e2d] via-[#0f3d3b] to-brand-blue px-4 relative overflow-hidden">
+      <div className="absolute -top-24 -left-24 w-96 h-96 rounded-full bg-brand-teal/20 blur-3xl" />
+      <div className="absolute -bottom-24 -right-24 w-96 h-96 rounded-full bg-brand-blue/20 blur-3xl" />
+
+      <form onSubmit={onSubmit} className="animate-scale-in relative w-full max-w-sm bg-white/95 backdrop-blur rounded-2xl shadow-2xl border border-white/20 p-8 space-y-5">
+        <div className="flex items-center gap-3 mb-1">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-teal to-brand-blue flex items-center justify-center text-white font-bold shrink-0">
+            AV
+          </div>
+          <div>
+            <h1 className="text-lg font-semibold text-slate-900">SEC Console</h1>
+            <p className="text-xs text-slate-500">Student Experience Center — admin &amp; agent access</p>
+          </div>
         </div>
 
         <div className="space-y-1">
@@ -45,7 +53,7 @@ function LoginForm() {
             required
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
+            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-teal/40 focus:border-brand-teal transition-shadow"
           />
         </div>
 
@@ -56,16 +64,16 @@ function LoginForm() {
             required
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
+            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-teal/40 focus:border-brand-teal transition-shadow"
           />
         </div>
 
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {error && <p className="text-sm text-red-600 animate-fade-in">{error}</p>}
 
         <button
           type="submit"
           disabled={loading}
-          className="w-full rounded-md bg-slate-900 text-white text-sm font-medium py-2 hover:bg-slate-800 disabled:opacity-50"
+          className="w-full rounded-lg bg-gradient-to-r from-brand-teal-dark to-brand-deep text-white text-sm font-medium py-2.5 hover:opacity-95 active:scale-[0.99] transition disabled:opacity-50"
         >
           {loading ? "Signing in..." : "Sign in"}
         </button>

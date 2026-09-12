@@ -2,7 +2,7 @@
 
 Status: draft
 Owner: Principal Architect
-Updated: 2026-09-12 by staff_engineer — added ADR-007 (interaction sessions + lead rollup)
+Updated: 2026-09-13 by staff_engineer — added ADR-008 (console redesign + AI-suggested replies)
 
 **Append-only.** Never edit or delete a past decision. To change course, add a new ADR
 with `Supersedes: ADR-00X`. The value of this file is that it explains *why* the system
@@ -280,3 +280,55 @@ sentiment on the same tool call as the reply avoids a second Gemini round-trip p
 
 **Confidence:** verified — implemented; not yet run through the same live smoke test as
 the rest of the golden path (see backlog).
+
+---
+
+## ADR-008 — Console redesign: Avanse brand theme, shared brief component, AI-suggested replies
+
+- **Date:** 2026-09-13
+- **Status:** accepted
+- **Deciders:** user
+- **Phase:** harden
+
+**Context**
+User asked for a "state of the art" redesign of both consoles with the real Avanse brand
+theme, plus agent-efficiency features (suggested replies, summaries, a dashboard), while
+explicitly asking to reuse existing transcript summaries rather than add new LLM calls
+for that purpose.
+
+**Decision**
+- Sourced Avanse's actual brand colors (teal `#00AEAF`, cornflower blue `#4E78F4`, deep
+  teal `#10847E`) from public brand assets rather than inventing a palette, and wired them
+  into Tailwind v4's `@theme` block in `globals.css` alongside a small shared animation
+  vocabulary (fade/slide/scale-in, shimmer, pulse-ring).
+- Extracted `SalesBriefCard` (and the underlying `buildSalesBrief`/`computeCohort`, both
+  pure functions over already-captured data) into one shared component used by *both*
+  the admin transcript page and the agent thread page — one computation, two consoles,
+  zero extra model calls to show it twice.
+- Added `/api/agent/suggest-reply`: a genuinely new on-demand LLM call (there's no way to
+  "suggest a reply" without generating one), but it reuses `generateCounsellingReply` —
+  the exact same context/history/profileSummary path the AI counsellor itself uses —
+  rather than a bespoke second prompt, and writes nothing to the database unless the
+  agent actually sends it.
+- Added `components/ui/{Badge,StatCard}.tsx` and `components/charts/TemperatureDonut.tsx`
+  (recharts, already an unused dependency) as the shared visual vocabulary for both
+  consoles' dashboards.
+
+**Rationale**
+A real brand palette (not a placeholder) makes the demo read as an actual Avanse product;
+sharing the brief component guarantees the admin and agent views of the same lead can
+never silently drift out of sync; reusing the orchestrator for suggestions keeps the
+"why did it say that" story consistent between what the bot would have said and what it
+suggests an agent say.
+
+**Consequences**
+- Accepted: agent-facing suggestions cost one Gemini call per click — acceptable since
+  it's agent-initiated, not automatic, unlike the always-on counselling path.
+- Enables: the two consoles now share a design token set and can add new stat
+  cards/badges/briefs without re-deriving their look.
+- Revisit when: real Avanse brand guidelines (not a third-party brand-asset aggregator)
+  become available — swap the three hex values in `globals.css` if they differ.
+
+**Confidence:** inferred for the exact hex values (sourced from Brandfetch, a third-party
+aggregator, not Avanse's own brand guidelines — flagged in tech-debt) — verified for
+everything else, implemented and deployed.

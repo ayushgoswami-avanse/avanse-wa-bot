@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { getLeadRows } from "@/lib/reporting";
 import { StatCard } from "@/components/ui/StatCard";
-import { Avatar, TemperatureBadge, SentimentBadge, Tag } from "@/components/ui/Badge";
+import { Avatar, TemperatureBadge, SentimentBadge, DispositionBadge, Tag } from "@/components/ui/Badge";
 
 export default async function LeadsPage({
   searchParams,
@@ -69,6 +69,7 @@ export default async function LeadsPage({
               <th className="text-left px-4 py-2">Persona / Cohort</th>
               <th className="text-left px-4 py-2">Segment tags</th>
               <th className="text-left px-4 py-2">Stage</th>
+              <th className="text-left px-4 py-2">Disposition</th>
               <th className="text-left px-4 py-2">Temperature</th>
               <th className="text-left px-4 py-2">Sessions</th>
               <th className="text-left px-4 py-2">Sentiment</th>
@@ -105,6 +106,9 @@ export default async function LeadsPage({
                 </td>
                 <td className="px-4 py-2.5 text-slate-600">{l.stage}</td>
                 <td className="px-4 py-2.5">
+                  <DispositionBadge value={l.disposition} />
+                </td>
+                <td className="px-4 py-2.5">
                   <TemperatureBadge value={l.leadTemperature} />
                 </td>
                 <td className="px-4 py-2.5 text-slate-600">{l.interactionSessionCount}</td>
@@ -117,7 +121,7 @@ export default async function LeadsPage({
             ))}
             {leads.length === 0 && (
               <tr>
-                <td colSpan={9} className="px-4 py-10 text-center text-slate-500">
+                <td colSpan={10} className="px-4 py-10 text-center text-slate-500">
                   No leads match this filter.
                 </td>
               </tr>

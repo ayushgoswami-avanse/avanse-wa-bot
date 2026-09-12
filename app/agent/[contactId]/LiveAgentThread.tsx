@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import type { Message, Handover } from "@prisma/client";
 import ConversationView from "@/components/ConversationView";
+import DispositionPanel, { type NoteEntry } from "@/components/DispositionPanel";
 import { useLiveThread, type ThreadMeta } from "@/components/useLiveThread";
 import SendBox from "./SendBox";
 import HandoverControls from "./HandoverControls";
@@ -15,6 +16,8 @@ export default function LiveAgentThread({
   initialMeta,
   showFinancials,
   templates,
+  currentDisposition,
+  initialNotes,
 }: {
   contactId: string;
   initialMessages: Message[];
@@ -23,6 +26,8 @@ export default function LiveAgentThread({
   initialMeta: ThreadMeta;
   showFinancials: boolean;
   templates: { name: string; category: string }[];
+  currentDisposition: string;
+  initialNotes: NoteEntry[];
 }) {
   const { messages, handover, inWindow, contact, refresh } = useLiveThread(contactId, {
     messages: initialMessages,
@@ -70,6 +75,10 @@ export default function LiveAgentThread({
 
         <div className="animate-slide-up stagger-2">
           <HandoverControls contactId={contactId} handover={handover} onAction={refresh} />
+        </div>
+
+        <div className="animate-slide-up stagger-3">
+          <DispositionPanel contactId={contactId} currentDisposition={currentDisposition} initialNotes={initialNotes} />
         </div>
       </div>
     </div>

@@ -4,6 +4,8 @@ import { computeServiceWindow } from "@/lib/messaging/sendGovernor";
 import SalesBriefCard from "@/components/SalesBriefCard";
 import { buildSalesBrief } from "@/lib/salesBrief";
 import { computeCohort } from "@/lib/segmentation";
+import { buildLeadTimeline } from "@/lib/timeline";
+import LeadTimeline from "@/components/LeadTimeline";
 import LiveAgentThread from "./LiveAgentThread";
 
 export default async function AgentThreadPage({ params }: { params: Promise<{ contactId: string }> }) {
@@ -17,6 +19,8 @@ export default async function AgentThreadPage({ params }: { params: Promise<{ co
   const handoffTokens = await prisma.handoffToken.findMany({ where: { contactId } });
   const { inWindow } = await computeServiceWindow(contactId);
   const templates = await prisma.messageTemplate.findMany({ where: { metaApprovalState: "approved" } });
+  const notes = await prisma.agentNote.findMany({ where: { contactId }, orderBy: { createdAt: "desc" }, include: { author: true } });
+  const { events } = await buildLeadTimeline(contact);
 
   if (session) await prisma.transcriptView.create({ data: { contactId, agentId: session.sub } });
   const showFinancials = session ? canViewFinancials(session.role) : false;
@@ -44,7 +48,14 @@ export default async function AgentThreadPage({ params }: { params: Promise<{ co
         }}
         showFinancials={showFinancials}
         templates={templates.map((t) => ({ name: t.name, category: t.category }))}
+        currentDisposition={contact.disposition}
+        initialNotes={notes.map((n) => ({ id: n.id, body: n.body, createdAt: n.createdAt.toISOString(), agentName: n.author.displayName }))}
       />
+
+      <div className="animate-slide-up stagger-3">
+        <h2 className="text-sm font-semibold text-slate-700 mb-3">Lead journey timeline</h2>
+        <LeadTimeline events={events} />
+      </div>
     </div>
   );
 }

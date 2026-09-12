@@ -100,6 +100,20 @@ enum GroundingClass {
   REFUSED
 }
 
+/// Sales-facing disposition — set manually by whoever is working the lead (agent or
+/// sales manager), independent of the AI's own stage/propensity machinery.
+enum Disposition {
+  NEW
+  INTERESTED
+  HOT_FOLLOW_UP
+  CALLBACK_REQUESTED
+  NOT_INTERESTED
+  CONVERTED
+  DO_NOT_CONTACT
+  INVALID_CONTACT
+  DUPLICATE
+}
+
 /// FR-A01 — permanent, non-guessable asset registered per physical/digital touchpoint.
 model Asset {
   id           String   @id @default(cuid())
@@ -198,6 +212,10 @@ model Contact {
 
   serviceWindowExpiresAt DateTime? // 24h window, recomputed on each inbound message
 
+  // Sales disposition — set by an agent/sales manager, not derived by the AI.
+  disposition           Disposition @default(NEW)
+  dispositionUpdatedAt  DateTime?
+
   mergedIntoContactId   String?  @unique
   mergedAt              DateTime?
 
@@ -215,17 +233,20 @@ model Contact {
   groundingLogs         GroundingLog[]
   lastTouchEvents       LastTouchEvent[]
   interactionSessions   InteractionSession[]
+  dispositionEvents     DispositionEvent[]
+  notes                 AgentNote[]
 
   @@index([waId])
   @@index([journey])
   @@index([propensityBand])
+  @@index([disposition])
 }
 
 /// FR-B06, DR-05 — append-only, immutable. No update/delete path in application code.
 model ConsentLedgerEntry {
   id              String        @id @default(cuid())
   contactId       String
-  contact         Contact       @relation(fields: [contactId], references: [id])
+  contact         Contact       @relation(fields: [contactId], references: [id], onDelete: Cascade)
   noticeVersion   String
   scope           ConsentScope
   action          ConsentAction
@@ -239,7 +260,7 @@ model ConsentLedgerEntry {
 model Message {
   id               String           @id @default(cuid())
   contactId        String
-  contact          Contact          @relation(fields: [contactId], references: [id])
+  contact          Contact          @relation(fields: [contactId], references: [id], onDelete: Cascade)
   metaMessageId    String?          @unique // for dedup on replay
   direction        MessageDirection
   kind             MessageKind
@@ -274,7 +295,7 @@ model MessageTemplate {
 model SendLog {
   id              String   @id @default(cuid())
   contactId       String
-  contact         Contact  @relation(fields: [contactId], references: [id])
+  contact         Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
   templateId      String?
   template        MessageTemplate? @relation(fields: [templateId], references: [id])
   journey         Journey?
@@ -290,7 +311,7 @@ model SendLog {
 model EligibilityRequest {
   id                  String   @id @default(cuid())
   contactId           String
-  contact             Contact  @relation(fields: [contactId], references: [id])
+  contact             Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
   coApplicantIncome   Float
   existingEmis        Float
   destinationOrCourse String
@@ -308,7 +329,7 @@ model EligibilityRequest {
 model HandoffToken {
   id          String   @id @default(cuid())
   contactId   String
-  contact     Contact  @relation(fields: [contactId], references: [id])
+  contact     Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
   token       String   @unique
   journey     Journey
   expiresAt   DateTime
@@ -322,7 +343,7 @@ model HandoffToken {
 model Handover {
   id          String         @id @default(cuid())
   contactId   String
-  contact     Contact        @relation(fields: [contactId], references: [id])
+  contact     Contact        @relation(fields: [contactId], references: [id], onDelete: Cascade)
   reason      HandoverReason
   status      HandoverStatus @default(QUEUED)
   claimedById String?
@@ -345,13 +366,45 @@ model AgentUser {
   sentMessages     Message[]
   claimedHandovers Handover[]
   transcriptViews  TranscriptView[]
+  dispositionEvents DispositionEvent[]
+  notes            AgentNote[]
+}
+
+/// Lead-timeline event: every disposition change a human makes on a lead, with who and
+/// when, so the sales-manager timeline can show how the lead was actually worked, not
+/// just what the AI observed.
+model DispositionEvent {
+  id           String      @id @default(cuid())
+  contactId    String
+  contact      Contact     @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  disposition  Disposition
+  note         String?     @db.Text
+  setByAgentId String
+  setByAgent   AgentUser   @relation(fields: [setByAgentId], references: [id])
+  createdAt    DateTime    @default(now())
+
+  @@index([contactId, createdAt])
+}
+
+/// Free-text working notes an agent/sales manager leaves for themself or a colleague —
+/// separate from the AI's own session summaries, and also surfaced on the lead timeline.
+model AgentNote {
+  id        String    @id @default(cuid())
+  contactId String
+  contact   Contact   @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    AgentUser @relation(fields: [authorId], references: [id])
+  body      String    @db.Text
+  createdAt DateTime  @default(now())
+
+  @@index([contactId, createdAt])
 }
 
 /// FR-H05 — every transcript view is logged with user, contact, timestamp.
 model TranscriptView {
   id         String   @id @default(cuid())
   contactId  String
-  contact    Contact  @relation(fields: [contactId], references: [id])
+  contact    Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
   agentId    String
   agent      AgentUser @relation(fields: [agentId], references: [id])
   viewedAt   DateTime @default(now())
@@ -403,7 +456,7 @@ model AlumniProfile {
 model AlumniConnect {
   id             String   @id @default(cuid())
   contactId      String
-  contact        Contact  @relation(fields: [contactId], references: [id])
+  contact        Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
   alumniId       String
   alumni         AlumniProfile @relation(fields: [alumniId], references: [id])
   slotTime       DateTime
@@ -427,7 +480,7 @@ model ResourceItem {
 model GroundingLog {
   id            String         @id @default(cuid())
   contactId     String
-  contact       Contact        @relation(fields: [contactId], references: [id])
+  contact       Contact        @relation(fields: [contactId], references: [id], onDelete: Cascade)
   queryClass    GroundingClass
   sanitizedQuery String        @db.Text
   allowListTopic String?
@@ -484,7 +537,7 @@ model CostLedgerEntry {
 model LastTouchEvent {
   id            String   @id @default(cuid())
   contactId     String
-  contact       Contact  @relation(fields: [contactId], references: [id])
+  contact       Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
   clickRecordId String
   createdAt     DateTime @default(now())
 
@@ -513,7 +566,7 @@ model ProcessioSyncLog {
 model InteractionSession {
   id               String     @id @default(cuid())
   contactId        String
-  contact          Contact    @relation(fields: [contactId], references: [id])
+  contact          Contact    @relation(fields: [contactId], references: [id], onDelete: Cascade)
   startedAt        DateTime   @default(now())
   endedAt          DateTime?
   messageCount     Int        @default(0)

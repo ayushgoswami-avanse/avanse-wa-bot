@@ -59,6 +59,7 @@ export type LeadRow = {
   cohortLabel: string;
   personaLabel: string;
   segmentTags: string;
+  disposition: string;
   createdAt: Date;
   lastActiveAt: Date;
 };
@@ -92,6 +93,7 @@ export async function getLeadRows(): Promise<LeadRow[]> {
       cohortLabel: cohort.cohortLabel,
       personaLabel: cohort.personaLabel,
       segmentTags: cohort.segmentTags.join(", "),
+      disposition: c.disposition,
       createdAt: c.createdAt,
       lastActiveAt: c.messages[0]?.createdAt ?? c.updatedAt,
     };

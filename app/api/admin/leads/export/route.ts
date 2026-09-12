@@ -11,6 +11,7 @@ const COLUMNS: { key: keyof Awaited<ReturnType<typeof getLeadRows>>[number]; hea
   { key: "segmentTags", header: "Segment Tags" },
   { key: "destinationOrCourse", header: "Destination/Course" },
   { key: "stage", header: "Stage" },
+  { key: "disposition", header: "Disposition" },
   { key: "leadTemperature", header: "Lead Temperature" },
   { key: "propensityScore", header: "Propensity Score" },
   { key: "attributionTier", header: "Attribution Tier" },

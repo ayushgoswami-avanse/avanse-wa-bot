@@ -35,6 +35,38 @@ export function StageBadge({ stage }: { stage: string }) {
   return <span className={`px-2 py-0.5 rounded-full text-xs font-medium capitalize ${style}`}>{label}</span>;
 }
 
+const DISPOSITION_STYLES: Record<string, string> = {
+  NEW: "bg-slate-100 text-slate-600 ring-1 ring-slate-200",
+  INTERESTED: "bg-brand-teal-50 text-brand-teal-dark ring-1 ring-brand-teal/20",
+  HOT_FOLLOW_UP: "bg-red-50 text-red-700 ring-1 ring-red-200",
+  CALLBACK_REQUESTED: "bg-amber-50 text-amber-700 ring-1 ring-amber-200",
+  NOT_INTERESTED: "bg-slate-100 text-slate-500 ring-1 ring-slate-200",
+  CONVERTED: "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200",
+  DO_NOT_CONTACT: "bg-slate-200 text-slate-600 ring-1 ring-slate-300",
+  INVALID_CONTACT: "bg-slate-100 text-slate-400 ring-1 ring-slate-200",
+  DUPLICATE: "bg-slate-100 text-slate-400 ring-1 ring-slate-200",
+};
+
+const DISPOSITION_LABELS: Record<string, string> = {
+  NEW: "New",
+  INTERESTED: "Interested",
+  HOT_FOLLOW_UP: "Hot follow-up",
+  CALLBACK_REQUESTED: "Callback requested",
+  NOT_INTERESTED: "Not interested",
+  CONVERTED: "Converted",
+  DO_NOT_CONTACT: "Do not contact",
+  INVALID_CONTACT: "Invalid contact",
+  DUPLICATE: "Duplicate",
+};
+
+export function DispositionBadge({ value }: { value: string }) {
+  return (
+    <span className={`px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${DISPOSITION_STYLES[value] ?? DISPOSITION_STYLES.NEW}`}>
+      {DISPOSITION_LABELS[value] ?? value}
+    </span>
+  );
+}
+
 export function Avatar({ name }: { name: string }) {
   const initials = name
     .split(" ")

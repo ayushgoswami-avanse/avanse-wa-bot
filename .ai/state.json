@@ -11,10 +11,10 @@
   },
 
   "phase": {
-    "current": "build",
+    "current": "test",
     "entered": "2026-09-12",
     "gate_status": "open",
-    "gate_blockers": ["No public git repo yet for Render to deploy from — Render's API needs a public HTTPS git URL, and this repo has no remote"]
+    "gate_blockers": ["Real Meta WhatsApp channel not yet confirmed working end-to-end with a real phone (web mirror golden path fully verified in production)"]
   },
 
   "active_agent": "staff_engineer",
@@ -31,12 +31,12 @@
 
   "next_action": {
     "agent": "staff_engineer",
-    "description": "Get a public GitHub repo (or a PAT to create one) so Render can deploy from it — Render's API accepts a public git URL directly, no GitHub App install needed. Then create the web service via API (Postgres DB already created), trigger prisma db push + seed as a Render one-off job, and smoke-test the golden path.",
-    "requires_user_input": true,
+    "description": "App is deployed and live at https://sec-whatsapp-bot.onrender.com. Run the Settings page's 'Configure WhatsApp webhook' button (or POST /api/admin/whatsapp-webhook-setup) to subscribe the WABA, then have the user send a real WhatsApp message from one of the 5 verified test numbers to confirm the live channel end to end. Also decide whether to pull forward any of tech-debt D-002/D-008 before showing management.",
+    "requires_user_input": false,
     "context_files": [
       ".ai/00-INDEX.md",
       ".ai/tasks/T-001.md",
-      ".env.example"
+      ".ai/engineering/ops.md"
     ]
   },
 
@@ -78,9 +78,7 @@
     "next_adr_number": 7
   },
 
-  "blockers": [
-    "No public git repo to deploy from — Render's create-service API needs a public HTTPS git URL. Asked the user for a GitHub repo or a token to create one."
-  ],
+  "blockers": [],
 
   "drift": {
     "last_sync": "",
@@ -92,6 +90,6 @@
     "count": 1,
     "last_session_id": "session-1",
     "last_session_ended": "",
-    "last_summary": "Scaffolded the harness (previous session), then built the full POC application: Next.js + Prisma schema covering every BRD entity, attribution/consent/profiling/AI-counselling/eligibility/handoff/send-governor modules, Meta webhook + web-mirror channels, admin and agent consoles, auth, and a seed script. Blocked on credentials before DB migration and deploy."
+    "last_summary": "Built and deployed the full POC to Render (https://sec-whatsapp-bot.onrender.com): created the Postgres DB and web service via Render's API, pushed to a new GitHub repo, fixed two rounds of build failures (Prisma 7's config split + driver-adapter requirement, then TypeScript errors in the Gemini tool-calling code), and smoke-tested the entire golden path end to end via the web chat mirror — consent, age gate, journey fork, full profiling, RAG hook, a live-grounded Gemini answer with real current data, Tier 1 eligibility via the mock BRE, and a signed DIY handoff token with replay rejection all verified working in production. Also switched the AI orchestrator from Anthropic to Gemini per the user's instruction (ADR-006)."
   }
 }

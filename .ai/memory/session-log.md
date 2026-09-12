@@ -67,18 +67,42 @@ of the SEC WhatsApp AI counsellor for a management demo, on free/open-source inf
   caught via the system's "file changed on disk" notice, fixed by making CLAUDE.md import
   both files.
 
+**Continued (same session) — deployment**
+- User supplied a single Google API key ("use it for both grounding and non-grounding"),
+  Render token, admin/password, then Meta WhatsApp test credentials, then a GitHub repo URL.
+- Rewrote the orchestrator from Anthropic to Gemini function-calling (ADR-006); verified
+  the exact request/response shapes (`functionDeclarations`, `response.functionCalls`,
+  `Type.OBJECT/STRING/BOOLEAN`) against the installed `@google/genai` package's own `.d.ts`
+  files rather than trusting web search summaries a second time.
+- Pushed to `github.com/ayushgoswami-avanse/avanse-wa-bot` (public, `SEC Whatsapp/` source
+  docs excluded via .gitignore — those are confidential Avanse business documents and must
+  never be in a public repo).
+- Created the Render Postgres DB and web service via the Render REST API directly (no
+  GitHub App install needed — Render deploys from a public git URL with `autoDeploy` not
+  actually working for that source type, so every push needs a manual `POST .../deploys`).
+- Two build failures, both fixed from Render's build logs (not guessed in advance):
+  Prisma 7 rejects `datasource.url` in schema.prisma (needs `prisma.config.ts` + a
+  `@prisma/adapter-pg` driver adapter in `PrismaClient`), then several TypeScript errors
+  (missing `@types/qrcode`/`@types/jsonwebtoken`, a `Journey` enum narrowing issue, and the
+  hand-rolled tool-declaration type not matching `@google/genai`'s real types).
+- **Deployed and live**, smoke-tested the entire golden path end-to-end via the web mirror
+  API directly (curl): consent → age gate → journey fork → full international profiling →
+  RAG hook fired → a real Gemini-grounded answer (current 2026 US F1 visa fee figures,
+  correctly cited and dated) → Low-tier conversational college fallback → Tier 1
+  eligibility via the mock BRE (real computed figure) → signed handoff token → `/portal`
+  decoded it correctly → replay on the same token was correctly rejected.
+- Discovered Avanse's corporate Zscaler proxy blocks `graph.facebook.com` entirely (this
+  sandbox cannot make Meta Graph API calls directly) — built an admin-only route
+  (`/api/admin/whatsapp-webhook-setup`, also a Settings-page button) that runs the WABA
+  subscribe + webhook-override calls server-side on Render instead, since Render's network
+  isn't behind that proxy.
+
 **Left undone / next**
-- Get real credentials from the user (Q-001): Anthropic, Google, Meta WhatsApp test
-  number, Render API token, DATABASE_URL.
-- Run `npm install` to completion (background — Prisma version churn required two
-  re-installs), then `prisma generate`, `prisma db push`, `prisma db seed`.
-- Deploy to Render (user has tokens ready per their answer — not yet supplied in-session).
-- Full smoke test of the golden path end to end (QR scan → web/WhatsApp chat → consent →
-  fork → profiling → counselling with a grounded query → eligibility → handoff → agent
-  takeover → admin dashboards all show real numbers).
-- Populate `.ai/product/brd.md` / `prd.md` with condensed content from the source docx
-  (currently still the blank scaffold templates) and finish `architecture.md`,
-  `data-model.md`, `ops.md`.
+- Click "Configure WhatsApp webhook" in Settings (or POST the route above) to actually
+  subscribe the WABA now that the app is live, then get the user to send a real WhatsApp
+  message from one of their 5 verified test numbers to confirm that channel end-to-end.
+- Populate `.ai/product/brd.md` / `prd.md` with condensed content from the source docx —
+  done earlier this session, already reflected in those files.
 
 **Watch out for**
 - Do not let a future `npm update` touch `prisma`/`@prisma/client` past 7.x without

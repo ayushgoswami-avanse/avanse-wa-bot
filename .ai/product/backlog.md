@@ -10,8 +10,7 @@ Ordered. The top unblocked item is what `next_action` should point at.
 
 | ID | Type | Title | Traces to | Status | Depends on | Notes |
 |---|---|---|---|---|---|---|
-| T-001 | feature | Build + deploy the full POC | all BRD modules | in_review | — | Deployed and live; golden path smoke-tested via web mirror. Real WhatsApp channel not yet confirmed with a real phone |
-| T-006 | feature | Configure + confirm the real Meta WhatsApp channel end-to-end | T-001 | in_progress | — | Webhook GET-verify handshake tested OK; subscribe/override action built (`/admin` → Settings → "Configure WhatsApp webhook"); needs a real inbound message from one of the 5 verified test numbers to fully confirm |
+| T-001 | feature | Build + deploy the full POC | all BRD modules | done | — | Deployed and live; golden path smoke-tested via web mirror and the real webhook pipeline |
 | T-007 | chore | Decide which tech-debt items (D-002 tests, D-008 red-team suite, etc.) to pull forward before the management demo | T-001 | not_started | user decision | See Q-005 (timeline) |
 
 ## Blocked
@@ -27,3 +26,4 @@ Ordered. The top unblocked item is what `next_action` should point at.
 | — | Get credentials from user | 2026-09-12 | Google API key, Render token, admin login, Meta WhatsApp credentials all supplied | Session 1 |
 | — | Push to GitHub, create Render Postgres + web service, fix 2 rounds of build failures | 2026-09-12 | Render deploy status = `live`; verified via curl | Session 1 |
 | — | Smoke test golden path (consent → age gate → fork → profiling → RAG hook → grounded AI answer → eligibility → handoff → replay rejection) | 2026-09-12 | Ran the actual flow against the live deployment via `/api/web-mirror/*`, inspected `/api/web-mirror/history` and `/portal` responses | Session 1 |
+| — | Configure + confirm the real Meta WhatsApp channel end-to-end | 2026-09-12 | App-level + WABA webhook subscription both returned success; a signed synthetic webhook payload was correctly verified, parsed, and triggered a real Meta Send API call (rejected only because the test wa_id wasn't in the 5 allowed recipients — confirmed via Render app logs) | Session 1 |

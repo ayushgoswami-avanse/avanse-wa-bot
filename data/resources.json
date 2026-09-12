@@ -1,0 +1,12 @@
+{
+  "_note": "Seed data for the FR-J03 resource hub (list message categories with deep links to the web mirror's resource pages).",
+  "items": [
+    { "category": "Visa & documentation", "title": "US F1 visa checklist", "url": "/resources/visa/us-f1", "journey": "INTERNATIONAL" },
+    { "category": "Visa & documentation", "title": "Germany student visa (blocked account)", "url": "/resources/visa/germany", "journey": "INTERNATIONAL" },
+    { "category": "Test prep", "title": "GRE vs GMAT — which one do I need?", "url": "/resources/test-prep/gre-vs-gmat", "journey": "INTERNATIONAL" },
+    { "category": "Loan basics", "title": "How education loan disbursement works", "url": "/resources/loans/disbursement-basics", "journey": null },
+    { "category": "Loan basics", "title": "Co-applicant: who can be one?", "url": "/resources/loans/co-applicant", "journey": null },
+    { "category": "Domestic programmes", "title": "MBA vs M.Tech: choosing a PG path", "url": "/resources/domestic/mba-vs-mtech", "journey": "DOMESTIC" },
+    { "category": "Domestic programmes", "title": "Funding a skilling bootcamp", "url": "/resources/domestic/skilling-funding", "journey": "DOMESTIC" }
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "_note": "Synthetic demo data standing in for Avanse's proprietary student-outcome corpus (BRD FR-D02, PRD §2.4). Replace with real disbursement/outcome records before any non-demo use.",
+  "international": [
+    { "collegeName": "VIT Vellore", "destinationCountry": "USA", "course": "MS Computer Science", "year": 2025, "admittedTo": "Arizona State University", "scholarshipPct": 20, "startingSalaryUsd": 92000 },
+    { "collegeName": "VIT Vellore", "destinationCountry": "USA", "course": "MS Data Science", "year": 2025, "admittedTo": "University at Buffalo", "scholarshipPct": 15, "startingSalaryUsd": 85000 },
+    { "collegeName": "SRM Chennai", "destinationCountry": "Germany", "course": "MS Mechanical Engineering", "year": 2025, "admittedTo": "TU Munich", "scholarshipPct": 0, "startingSalaryUsd": 68000 },
+    { "collegeName": "SRM Chennai", "destinationCountry": "UK", "course": "MSc Data Analytics", "year": 2024, "admittedTo": "University of Manchester", "scholarshipPct": 10, "startingSalaryUsd": 61000 },
+    { "collegeName": "Chandigarh University", "destinationCountry": "Canada", "course": "MEng Software Engineering", "year": 2025, "admittedTo": "University of Waterloo", "scholarshipPct": 5, "startingSalaryUsd": 78000 },
+    { "collegeName": "Chandigarh University", "destinationCountry": "Australia", "course": "MS Information Technology", "year": 2024, "admittedTo": "University of Melbourne", "scholarshipPct": 12, "startingSalaryUsd": 70000 },
+    { "collegeName": "LPU Jalandhar", "destinationCountry": "USA", "course": "MS Electrical Engineering", "year": 2025, "admittedTo": "Texas A&M University", "scholarshipPct": 25, "startingSalaryUsd": 88000 },
+    { "collegeName": "GITAM Visakhapatnam", "destinationCountry": "Ireland", "course": "MSc Cybersecurity", "year": 2025, "admittedTo": "Trinity College Dublin", "scholarshipPct": 0, "startingSalaryUsd": 65000 },
+    { "collegeName": "GITAM Visakhapatnam", "destinationCountry": "USA", "course": "MS Civil Engineering", "year": 2024, "admittedTo": "Purdue University", "scholarshipPct": 18, "startingSalaryUsd": 79000 },
+    { "collegeName": "Nirma University", "destinationCountry": "USA", "course": "MS Business Analytics", "year": 2025, "admittedTo": "Northeastern University", "scholarshipPct": 10, "startingSalaryUsd": 91000 }
+  ],
+  "domestic": [
+    { "collegeName": "VIT Vellore", "courseCategory": "PG", "course": "MBA Finance", "year": 2025, "admittedTo": "IIM Indore (Executive)", "startingSalaryInr": 1400000 },
+    { "collegeName": "SRM Chennai", "courseCategory": "PG", "course": "M.Tech VLSI Design", "year": 2025, "admittedTo": "IIT Madras", "startingSalaryInr": 1100000 },
+    { "collegeName": "Chandigarh University", "courseCategory": "skilling", "course": "Full-Stack Development Bootcamp", "year": 2025, "admittedTo": "Masai School", "startingSalaryInr": 650000 },
+    { "collegeName": "LPU Jalandhar", "courseCategory": "professional", "course": "CFA Level 1-3 Programme", "year": 2024, "admittedTo": "self-paced + Avanse-financed", "startingSalaryInr": 900000 },
+    { "collegeName": "Nirma University", "courseCategory": "PG", "course": "MBA Marketing", "year": 2025, "admittedTo": "XLRI Jamshedpur", "startingSalaryInr": 1600000 }
+  ],
+  "always_ground_reference": {
+    "_note": "Static fallback figures used only if a live grounded call fails. Always marked with an as-of date and a warning that they may be stale — never presented as current without the disclaimer.",
+    "visa_processing_days_usa_f1": { "value": "3-5 weeks typical, varies by consulate", "asOf": "2026-06-01" },
+    "forex_note": { "value": "Check live rates — this corpus does not track forex", "asOf": "2026-01-01" }
+  }
+}

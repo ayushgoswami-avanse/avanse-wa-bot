@@ -1,0 +1,503 @@
+// SEC WhatsApp AI Counsellor — POC data model
+// Traces to .ai/engineering/data-model.md and Avanse_SEC_BRD_v1_0 section 4.3 / DR-01..DR-09.
+// POC simplifications vs the full BRD are logged in .ai/engineering/tech-debt.md.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Journey {
+  INTERNATIONAL
+  DOMESTIC
+  UNDECIDED
+}
+
+enum AttributionTier {
+  HIGH_EXACT
+  HIGH_REUSE
+  MEDIUM
+  LOW
+}
+
+enum ConsentScope {
+  PROFILING_AND_CONTACT
+}
+
+enum ConsentAction {
+  GRANTED
+  WITHDRAWN
+}
+
+enum MessageDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum MessageKind {
+  TEXT
+  BUTTON
+  LIST
+  TEMPLATE
+  FLOW
+  MEDIA_EVENT
+}
+
+enum TemplateCategory {
+  MARKETING
+  UTILITY
+  AUTHENTICATION
+}
+
+enum PropensityBand {
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum HandoverReason {
+  EXPLICIT_REQUEST
+  NEGATIVE_SENTIMENT
+  COMPLEX_OR_HIGH_VALUE
+  COUNSELLOR_REFUSAL
+}
+
+enum HandoverStatus {
+  QUEUED
+  CLAIMED
+  RESOLVED
+}
+
+enum AgentRole {
+  ADMIN
+  COUNSELLOR_AGENT
+  COMPLIANCE_VIEWER
+}
+
+enum PayoutStatus {
+  PENDING_REVIEW
+  APPROVED
+  HELD
+  CLAWED_BACK
+  PAID
+}
+
+enum GroundingClass {
+  RAG_ONLY
+  CACHE_GROUNDED
+  LIVE_GROUNDED
+  REFUSED
+}
+
+/// FR-A01 — permanent, non-guessable asset registered per physical/digital touchpoint.
+model Asset {
+  id           String   @id @default(cuid())
+  code         String   @unique // opaque, non-sequential, e.g. "p04c2"
+  channel      String // "poster" | "ambassador" | "digital" | "event"
+  collegeName  String?
+  spotLabel    String? // e.g. "Canteen board 2"
+  ambassadorId String?
+  ambassador   Ambassador? @relation(fields: [ambassadorId], references: [id])
+  campaign     String?
+  journeyHint  Journey?
+  validFrom    DateTime @default(now())
+  validUntil   DateTime?
+  createdAt    DateTime @default(now())
+
+  clickRecords ClickRecord[]
+
+  @@index([code])
+}
+
+/// FR-A02 — written before the redirect fires. FR-A09 — reuse detection.
+model ClickRecord {
+  id           String   @id @default(cuid())
+  assetId      String
+  asset        Asset    @relation(fields: [assetId], references: [id])
+  clickToken   String   @unique // short, single-use, minted per scan
+  consumed     Boolean  @default(false)
+  consumedAt   DateTime?
+  reused       Boolean  @default(false) // FR-A09
+  userAgent    String?
+  coarseGeo    String?
+  deviceSignature String? // for FR-A05 probabilistic recovery
+  createdAt    DateTime @default(now())
+
+  contact      Contact?
+
+  @@index([clickToken])
+  @@index([createdAt])
+}
+
+/// DR-01 — wa_id is the primary contact identity, E.164, Meta-verified, not KYC-grade.
+model Contact {
+  id                    String   @id @default(cuid())
+  waId                  String   @unique // E.164
+  profileName           String?
+  confirmedName         String?
+
+  // First-touch attribution, stamped once (FR-A07) and never re-resolved.
+  attributionTier       AttributionTier?
+  attributionMethod     String? // "token_exact" | "token_reuse" | "device_recovery" | "conversational_college" | "direct"
+  firstClickRecordId    String?  @unique
+  firstClickRecord      ClickRecord? @relation(fields: [firstClickRecordId], references: [id])
+  collegeNameAttributed String? // Low-tier conversational fallback (FR-A06)
+
+  consentGranted        Boolean  @default(false)
+  ageGateStatus         String   @default("unknown") // "unknown" | "adult" | "minor"
+  isMinor               Boolean  @default(false)
+
+  // Deterministic conversation state machine (PRD §2 layers). The AI is only invoked
+  // during COUNSELLING turns; every other layer is compliance-sensitive and scripted.
+  stage                 String   @default("NEW")
+  pendingProfilingField String? // which single field the last outbound turn asked for
+  awaitingUndecidedRecheckAt DateTime?
+  eligibilityDraftJson  String?  @db.Text // in-flight Tier 1 answers across the sequential flow
+
+  journey               Journey?
+  journeyUndecidedAskedAt DateTime?
+
+  // Progressive profiling — international branch
+  destinationCountry    String?
+  degreeLevel           String?
+  intendedIntake        String?
+  currentYearOfStudy    String?
+  testStatus            String?
+  admissionStatus       String?
+
+  // Progressive profiling — domestic branch
+  courseCategory        String? // PG | skilling | professional
+  targetInstitution     String?
+  intakeOrBatch          String?
+  employmentStatus      String?
+  entranceStatus         String?
+
+  isQualifiedLead       Boolean  @default(false)
+  qualifiedAt           DateTime?
+
+  propensityScore       Float    @default(0)
+  propensityBand        PropensityBand?
+
+  profileSummary        String?  @db.Text // maintained rolling summary injected into model context
+
+  optedOutMarketing     Boolean  @default(false)
+  optedOutAt            DateTime?
+
+  serviceWindowExpiresAt DateTime? // 24h window, recomputed on each inbound message
+
+  mergedIntoContactId   String?  @unique
+  mergedAt              DateTime?
+
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  messages              Message[]
+  consentEntries        ConsentLedgerEntry[]
+  eligibilityRequests    EligibilityRequest[]
+  handoffTokens         HandoffToken[]
+  sendLogs              SendLog[]
+  handovers             Handover[]
+  transcriptViews       TranscriptView[]
+  alumniConnects        AlumniConnect[]
+  groundingLogs         GroundingLog[]
+  lastTouchEvents       LastTouchEvent[]
+
+  @@index([waId])
+  @@index([journey])
+  @@index([propensityBand])
+}
+
+/// FR-B06, DR-05 — append-only, immutable. No update/delete path in application code.
+model ConsentLedgerEntry {
+  id              String        @id @default(cuid())
+  contactId       String
+  contact         Contact       @relation(fields: [contactId], references: [id])
+  noticeVersion   String
+  scope           ConsentScope
+  action          ConsentAction
+  evidenceMessageId String
+  createdAt       DateTime      @default(now())
+
+  @@index([contactId])
+}
+
+/// DR-03 — one row per message, never a concatenated transcript.
+model Message {
+  id               String           @id @default(cuid())
+  contactId        String
+  contact          Contact          @relation(fields: [contactId], references: [id])
+  metaMessageId    String?          @unique // for dedup on replay
+  direction        MessageDirection
+  kind             MessageKind
+  body             String?          @db.Text
+  templateName     String?
+  windowStateAtSend String? // "in_window" | "out_of_window"
+  deliveryStatus   String?          // "sent" | "delivered" | "read" | "failed"
+  sentByAgentId    String?
+  sentByAgent      AgentUser?       @relation(fields: [sentByAgentId], references: [id])
+  createdAt        DateTime         @default(now())
+
+  @@index([contactId, createdAt])
+  @@index([metaMessageId])
+}
+
+/// FR-G03 — template registry, source of truth for what can be sent.
+model MessageTemplate {
+  id             String           @id @default(cuid())
+  name           String           @unique
+  category       TemplateCategory
+  language       String           @default("en")
+  journey        Journey?
+  bodyText       String           @db.Text
+  metaApprovalState String        @default("pending") // "pending" | "approved" | "rejected"
+  version        Int              @default(1)
+  createdAt      DateTime         @default(now())
+
+  sendLogs       SendLog[]
+}
+
+/// FR-G02 — every outbound message not covered by Message passes through here for governance auditing.
+model SendLog {
+  id              String   @id @default(cuid())
+  contactId       String
+  contact         Contact  @relation(fields: [contactId], references: [id])
+  templateId      String?
+  template        MessageTemplate? @relation(fields: [templateId], references: [id])
+  journey         Journey?
+  category        TemplateCategory?
+  allowed         Boolean
+  reason          String? // why blocked, if not allowed
+  createdAt       DateTime @default(now())
+
+  @@index([contactId, createdAt])
+}
+
+/// FR-E01, FR-E06 — Tier 1 indicative eligibility via the mock DIY BRE.
+model EligibilityRequest {
+  id                  String   @id @default(cuid())
+  contactId           String
+  contact             Contact  @relation(fields: [contactId], references: [id])
+  coApplicantIncome   Float
+  existingEmis        Float
+  destinationOrCourse String
+  courseType          String
+  amountSought        Float
+  breResponseUpToAmount Float
+  disclaimerVersion   String
+  featureFlagWasOn    Boolean
+  createdAt           DateTime @default(now())
+
+  @@index([contactId])
+}
+
+/// FR-F01 — short-lived signed token for DIY handoff.
+model HandoffToken {
+  id          String   @id @default(cuid())
+  contactId   String
+  contact     Contact  @relation(fields: [contactId], references: [id])
+  token       String   @unique
+  journey     Journey
+  expiresAt   DateTime
+  consumedAt  DateTime?
+  createdAt   DateTime @default(now())
+
+  @@index([token])
+}
+
+/// FR-H04 — human handover queue.
+model Handover {
+  id          String         @id @default(cuid())
+  contactId   String
+  contact     Contact        @relation(fields: [contactId], references: [id])
+  reason      HandoverReason
+  status      HandoverStatus @default(QUEUED)
+  claimedById String?
+  claimedBy   AgentUser?     @relation(fields: [claimedById], references: [id])
+  createdAt   DateTime       @default(now())
+  resolvedAt  DateTime?
+
+  @@index([status])
+}
+
+/// FR-H05 — RBAC for the agent/admin console.
+model AgentUser {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  passwordHash  String
+  displayName   String
+  role          AgentRole @default(COUNSELLOR_AGENT)
+  createdAt     DateTime @default(now())
+
+  sentMessages     Message[]
+  claimedHandovers Handover[]
+  transcriptViews  TranscriptView[]
+}
+
+/// FR-H05 — every transcript view is logged with user, contact, timestamp.
+model TranscriptView {
+  id         String   @id @default(cuid())
+  contactId  String
+  contact    Contact  @relation(fields: [contactId], references: [id])
+  agentId    String
+  agent      AgentUser @relation(fields: [agentId], references: [id])
+  viewedAt   DateTime @default(now())
+}
+
+/// FR-I04 — ambassador registry for QR asset ownership and payout.
+model Ambassador {
+  id           String   @id @default(cuid())
+  name         String
+  phone        String?
+  collegeName  String?
+  stipendPerMonth Float @default(3000)
+  createdAt    DateTime @default(now())
+
+  assets       Asset[]
+  payouts      AmbassadorPayout[]
+}
+
+/// FR-I04 — first-touch reconciliation, review queue, clawback.
+model AmbassadorPayout {
+  id             String       @id @default(cuid())
+  ambassadorId   String
+  ambassador     Ambassador   @relation(fields: [ambassadorId], references: [id])
+  contactWaId    String // the disbursed file's contact, for reconciliation trace
+  amount         Float
+  status         PayoutStatus @default(PENDING_REVIEW)
+  attributionTier AttributionTier
+  reviewNote     String?
+  createdAt      DateTime     @default(now())
+  resolvedAt     DateTime?
+}
+
+/// FR-J01 — alumni matching pool.
+model AlumniProfile {
+  id              String   @id @default(cuid())
+  name            String
+  destinationCountry String?
+  institution     String?
+  courseCategory  String?
+  collegeName     String?
+  bio             String?  @db.Text
+  active          Boolean  @default(true)
+  createdAt       DateTime @default(now())
+
+  connects        AlumniConnect[]
+}
+
+/// FR-J02, FR-I05 — slot booking and payout on a verified completed session.
+model AlumniConnect {
+  id             String   @id @default(cuid())
+  contactId      String
+  contact        Contact  @relation(fields: [contactId], references: [id])
+  alumniId       String
+  alumni         AlumniProfile @relation(fields: [alumniId], references: [id])
+  slotTime       DateTime
+  completed      Boolean  @default(false)
+  payoutAmount   Float    @default(500)
+  payoutTriggered Boolean @default(false)
+  createdAt      DateTime @default(now())
+}
+
+/// FR-J03 — resource hub catalogue, presented as category list messages.
+model ResourceItem {
+  id          String   @id @default(cuid())
+  category    String
+  title       String
+  url         String
+  journey     Journey?
+  createdAt   DateTime @default(now())
+}
+
+/// FR-D03 — grounding router decision log. Every decision logged with query class and outcome.
+model GroundingLog {
+  id            String         @id @default(cuid())
+  contactId     String
+  contact       Contact        @relation(fields: [contactId], references: [id])
+  queryClass    GroundingClass
+  sanitizedQuery String        @db.Text
+  allowListTopic String?
+  cacheHit      Boolean        @default(false)
+  citations     String?        @db.Text
+  latencyMs     Int?
+  createdAt     DateTime       @default(now())
+
+  @@index([contactId, createdAt])
+}
+
+/// FR-D07 — semantic cache for grounded answers, configurable TTL.
+model SemanticCacheEntry {
+  id           String   @id @default(cuid())
+  normalizedQuery String @unique
+  answer       String   @db.Text
+  citations    String?  @db.Text
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+}
+
+/// FR-I09 — the seven pilot measurements, trended daily from day one.
+model PilotMetricSnapshot {
+  id                        String   @id @default(cuid())
+  date                      DateTime @unique @db.Date
+  scanToSendRate            Float?
+  chatStartRate             Float?
+  contactToQualifiedLeadRate Float?
+  qualifiedLeadToLoginHigh   Float?
+  qualifiedLeadToLoginMedium Float?
+  qualifiedLeadToLoginLow    Float?
+  attributionHighConfidencePct Float?
+  liveGroundingSharePct     Float?
+  cacheHitRatePct           Float?
+  blockAndReportRatePct     Float?
+  createdAt                 DateTime @default(now())
+}
+
+/// FR-I06/I07 — cost reporting rollups (denormalised for the admin dashboard).
+model CostLedgerEntry {
+  id          String   @id @default(cuid())
+  date        DateTime @db.Date
+  category    String // "ai_tokens" | "ai_grounding" | "whatsapp_marketing" | "whatsapp_utility"
+  journey     Journey?
+  amountInr   Float
+  units       Int?     // tokens, grounded calls, templates sent, etc.
+  createdAt   DateTime @default(now())
+
+  @@index([date, category])
+}
+
+/// FR-A08 — later scans by a known contact, recorded for analysis only. Never alters
+/// the first-touch attribution the payout engine reads.
+model LastTouchEvent {
+  id            String   @id @default(cuid())
+  contactId     String
+  contact       Contact  @relation(fields: [contactId], references: [id])
+  clickRecordId String
+  createdAt     DateTime @default(now())
+
+  @@index([contactId])
+}
+
+/// FR-F05 — Processio LOS sync log. INT-08 is mocked (no real Processio in this POC) but
+/// the payload shape and gate are real, and every attempt is recorded for the admin console.
+model ProcessioSyncLog {
+  id             String   @id @default(cuid())
+  contactWaId    String
+  journey        Journey
+  propensityBand PropensityBand
+  attributionTier AttributionTier?
+  payloadJson    String   @db.Text
+  succeeded      Boolean
+  errorMessage   String?
+  createdAt      DateTime @default(now())
+}
+
+/// FR-A10 — channel failover config, editable without redeployment.
+model SystemConfig {
+  key         String   @id
+  value       String   @db.Text
+  updatedAt   DateTime @updatedAt
+}

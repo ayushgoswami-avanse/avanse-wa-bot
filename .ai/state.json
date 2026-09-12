@@ -1,0 +1,97 @@
+{
+  "harness_version": "1.0",
+  "schema_note": "Tier 0. Read every turn. Update at the end of every turn that changes anything.",
+
+  "project": {
+    "name": "Avanse SEC WhatsApp AI Counsellor",
+    "one_liner": "WhatsApp-first AI counsellor for Avanse's Student Experience Center — QR-attributed acquisition, dual journeys (international / domestic education loans), AI counselling with routed search grounding, and DIY handoff.",
+    "mode": "greenfield",
+    "created": "2026-09-12",
+    "updated": "2026-09-12"
+  },
+
+  "phase": {
+    "current": "build",
+    "entered": "2026-09-12",
+    "gate_status": "open",
+    "gate_blockers": ["No public git repo yet for Render to deploy from — Render's API needs a public HTTPS git URL, and this repo has no remote"]
+  },
+
+  "active_agent": "staff_engineer",
+
+  "task": {
+    "id": "T-001",
+    "type": "feature",
+    "title": "Build a fully-functional POC (all BRD/PRD modules, simplified where a real dependency doesn't exist) and deploy it on Render for a management demo",
+    "status": "in_progress",
+    "branch": "",
+    "plan_approved": true,
+    "task_file": ".ai/tasks/T-001.md"
+  },
+
+  "next_action": {
+    "agent": "staff_engineer",
+    "description": "Get a public GitHub repo (or a PAT to create one) so Render can deploy from it — Render's API accepts a public git URL directly, no GitHub App install needed. Then create the web service via API (Postgres DB already created), trigger prisma db push + seed as a Render one-off job, and smoke-test the golden path.",
+    "requires_user_input": true,
+    "context_files": [
+      ".ai/00-INDEX.md",
+      ".ai/tasks/T-001.md",
+      ".env.example"
+    ]
+  },
+
+  "conventions": {
+    "languages": ["TypeScript"],
+    "package_manager": "npm",
+    "framework": "Next.js 16 (App Router)",
+    "install_cmd": "npm install",
+    "run_cmd": "npm run dev",
+    "test_cmd": "(none yet — see tech-debt D-002)",
+    "lint_cmd": "npm run lint",
+    "build_cmd": "npm run build",
+    "entry_points": ["app/api/webhook/whatsapp/route.ts", "app/chat/page.tsx", "app/admin", "app/agent"],
+    "test_paths": [],
+    "style_notes": "Tailwind CSS v4 utility classes; Prisma ORM 7.10.0 pinned (8.x is an RC platform rewrite — do not upgrade without re-reading ADR-005)."
+  },
+
+  "docs": {
+    "brd":            { "path": ".ai/product/brd.md",                     "status": "approved", "updated": "2026-09-12" },
+    "prd":            { "path": ".ai/product/prd.md",                     "status": "approved", "updated": "2026-09-12" },
+    "backlog":        { "path": ".ai/product/backlog.md",                 "status": "draft", "updated": "2026-09-12" },
+    "architecture":   { "path": ".ai/engineering/architecture.md",        "status": "draft", "updated": "2026-09-12" },
+    "api_contracts":  { "path": ".ai/engineering/api-contracts.md",       "status": "missing", "updated": "" },
+    "data_model":     { "path": ".ai/engineering/data-model.md",          "status": "draft", "updated": "2026-09-12" },
+    "test_strategy":  { "path": ".ai/engineering/test-strategy.md",       "status": "missing", "updated": "" },
+    "ops":            { "path": ".ai/engineering/ops.md",                 "status": "draft", "updated": "2026-09-12" },
+    "tech_debt":      { "path": ".ai/engineering/tech-debt.md",           "status": "draft", "updated": "2026-09-12" },
+    "decisions":      { "path": ".ai/memory/decisions.md",                "status": "draft", "updated": "2026-09-12" },
+    "codebase_map":   { "path": ".ai/brownfield/codebase-map.md",         "status": "n/a", "updated": "" },
+    "behavior_notes": { "path": ".ai/brownfield/behavior-notes.md",       "status": "n/a", "updated": "" }
+  },
+
+  "counters": {
+    "open_questions": 4,
+    "blocking_questions": 1,
+    "open_tech_debt": 12,
+    "adr_count": 6,
+    "next_task_number": 2,
+    "next_adr_number": 7
+  },
+
+  "blockers": [
+    "No public git repo to deploy from — Render's create-service API needs a public HTTPS git URL. Asked the user for a GitHub repo or a token to create one."
+  ],
+
+  "drift": {
+    "last_sync": "",
+    "suspected": false,
+    "notes": ""
+  },
+
+  "session": {
+    "count": 1,
+    "last_session_id": "session-1",
+    "last_session_ended": "",
+    "last_summary": "Scaffolded the harness (previous session), then built the full POC application: Next.js + Prisma schema covering every BRD entity, attribution/consent/profiling/AI-counselling/eligibility/handoff/send-governor modules, Meta webhook + web-mirror channels, admin and agent consoles, auth, and a seed script. Blocked on credentials before DB migration and deploy."
+  }
+}

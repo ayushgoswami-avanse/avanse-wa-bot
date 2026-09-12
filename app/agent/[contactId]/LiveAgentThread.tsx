@@ -14,7 +14,6 @@ export default function LiveAgentThread({
   initialHandover,
   initialInWindow,
   initialMeta,
-  showFinancials,
   templates,
   currentDisposition,
   initialNotes,
@@ -24,7 +23,6 @@ export default function LiveAgentThread({
   initialHandover: Handover | null;
   initialInWindow: boolean;
   initialMeta: ThreadMeta;
-  showFinancials: boolean;
   templates: { name: string; category: string }[];
   currentDisposition: string;
   initialNotes: NoteEntry[];
@@ -59,37 +57,20 @@ export default function LiveAgentThread({
       </div>
 
       <div className="space-y-4">
-        <div className="animate-slide-up stagger-1 bg-white rounded-2xl border border-slate-200 p-4 text-sm space-y-2.5 shadow-sm">
-          <div className="font-semibold text-slate-900 font-mono text-xs pb-1 border-b border-slate-100">{contact.waId}</div>
-          <Row label="Journey" value={contact.journey ?? "—"} />
-          <Row label="Stage" value={contact.stage.replaceAll("_", " ").toLowerCase()} />
-          <Row label="Window" value={inWindow ? "In window (free-form OK)" : "Closed (template only)"} highlight={!inWindow} />
-          <Row label="Attribution" value={contact.attributionTier ?? "—"} />
-          <Row label="Propensity" value={contact.propensityBand ?? "—"} />
-          {showFinancials ? (
-            <Row label="Destination/course" value={contact.destinationCountry ?? contact.courseCategory ?? "—"} />
-          ) : (
-            <div className="text-xs text-slate-500 italic">Course/financial detail masked for your role</div>
-          )}
-        </div>
+        {!inWindow && (
+          <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+            Service window closed — only an approved template can be sent until {contact.waId} messages in again.
+          </div>
+        )}
 
-        <div className="animate-slide-up stagger-2">
+        <div className="animate-slide-up stagger-1">
           <HandoverControls contactId={contactId} handover={handover} onAction={refresh} />
         </div>
 
-        <div className="animate-slide-up stagger-3">
+        <div className="animate-slide-up stagger-2">
           <DispositionPanel contactId={contactId} currentDisposition={currentDisposition} initialNotes={initialNotes} />
         </div>
       </div>
-    </div>
-  );
-}
-
-function Row({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
-  return (
-    <div className="flex justify-between items-center gap-2">
-      <span className="text-slate-500">{label}</span>
-      <span className={`font-medium capitalize text-right ${highlight ? "text-amber-600" : "text-slate-900"}`}>{value}</span>
     </div>
   );
 }

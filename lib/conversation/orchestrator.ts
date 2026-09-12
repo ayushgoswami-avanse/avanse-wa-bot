@@ -244,9 +244,18 @@ export async function generateCounsellingReply(
     }
 
     if (functionCalls.length === 0) {
-      // Model finished without calling submit_reply — use whatever text it produced.
+      // Model finished without calling submit_reply at all — use whatever text it
+      // produced, and fall back to keyword sentiment since there's no tool args here.
+      console.log("[orchestrator] model replied without calling submit_reply — using response.text and sentiment fallback");
       const text = response.text;
-      if (text) return { replyText: text.slice(0, HARD_CAP_CHARS), escalate: false };
+      if (text) {
+        return {
+          replyText: text.slice(0, HARD_CAP_CHARS),
+          escalate: false,
+          sentiment: classifySentimentFallback(studentMessage),
+          sessionNote: studentMessage.slice(0, 100),
+        };
+      }
       return FALLBACK_RESULT;
     }
 

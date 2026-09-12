@@ -12,31 +12,47 @@ export async function POST() {
 
   const token = process.env.META_WHATSAPP_TOKEN;
   const wabaId = process.env.META_WABA_ID;
+  const appId = process.env.META_APP_ID;
+  const appSecret = process.env.META_APP_SECRET;
   const verifyToken = process.env.META_VERIFY_TOKEN;
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
 
-  if (!token || !wabaId || !verifyToken || !baseUrl) {
-    return NextResponse.json({ error: "Missing META_WHATSAPP_TOKEN / META_WABA_ID / META_VERIFY_TOKEN / NEXT_PUBLIC_BASE_URL" }, { status: 400 });
+  if (!token || !wabaId || !appId || !appSecret || !verifyToken || !baseUrl) {
+    return NextResponse.json(
+      { error: "Missing META_WHATSAPP_TOKEN / META_WABA_ID / META_APP_ID / META_APP_SECRET / META_VERIFY_TOKEN / NEXT_PUBLIC_BASE_URL" },
+      { status: 400 }
+    );
   }
 
   const callbackUrl = `${baseUrl}/api/webhook/whatsapp`;
+  const appAccessToken = `${appId}|${appSecret}`;
 
+  // Step 1 — set the App's default webhook (object=whatsapp_business_account). A fresh
+  // test app has no default callback yet; the per-WABA override below requires one to
+  // already exist, which is why this step must run first.
+  const appSubParams = new URLSearchParams({
+    object: "whatsapp_business_account",
+    callback_url: callbackUrl,
+    verify_token: verifyToken,
+    fields: "messages",
+    access_token: appAccessToken,
+  });
+  const appSubRes = await fetch(`https://graph.facebook.com/v21.0/${appId}/subscriptions`, {
+    method: "POST",
+    body: appSubParams,
+  });
+  const appSubJson = await appSubRes.json().catch(() => ({}));
+
+  // Step 2 — link this WABA to the app so it actually receives that webhook.
   const subscribeRes = await fetch(`https://graph.facebook.com/v21.0/${wabaId}/subscribed_apps`, {
     method: "POST",
     headers: { Authorization: `Bearer ${token}` },
   });
   const subscribeJson = await subscribeRes.json().catch(() => ({}));
 
-  const overrideRes = await fetch(`https://graph.facebook.com/v21.0/${wabaId}/subscribed_apps`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ override_callback_uri: callbackUrl, verify_token: verifyToken }),
-  });
-  const overrideJson = await overrideRes.json().catch(() => ({}));
-
   return NextResponse.json({
-    subscribe: { ok: subscribeRes.ok, status: subscribeRes.status, body: subscribeJson },
-    override: { ok: overrideRes.ok, status: overrideRes.status, body: overrideJson },
+    appLevelSubscription: { ok: appSubRes.ok, status: appSubRes.status, body: appSubJson },
+    wabaSubscription: { ok: subscribeRes.ok, status: subscribeRes.status, body: subscribeJson },
     callbackUrl,
   });
 }

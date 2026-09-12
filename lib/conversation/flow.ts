@@ -434,13 +434,17 @@ async function handleInboundMessageInStage(
       }
 
       if (contact.stage === "COUNSELLING" && contact.attributionTier === "LOW" && !contact.collegeNameAttributed) {
-        // FR-A06 — Low-tier conversational fallback, asked naturally once.
+        // FR-A06 — Low-tier conversational fallback, asked naturally once. Whichever
+        // branch fires here owns this turn's reply — falling through to runCounselling
+        // below would let the NEXT unrelated message get misread as the college name.
         const looksLikeCollegeAnswer = text.length < 60 && !/[?]/.test(text);
         if (looksLikeCollegeAnswer && contact.pendingProfilingField === "__college_ask__") {
           await stampConversationalCollege(contact.id, text);
+          await prisma.contact.update({ where: { id: contact.id }, data: { pendingProfilingField: null } });
         } else if (contact.pendingProfilingField !== "__college_ask__") {
           await prisma.contact.update({ where: { id: contact.id }, data: { pendingProfilingField: "__college_ask__" } });
           await send(contact, { kind: "text", body: "By the way, which college are you at? Helps me tailor this better." });
+          return;
         }
       }
 

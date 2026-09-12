@@ -45,6 +45,11 @@ export default function Home() {
         <p className="text-xs text-white/50 text-center mt-8 animate-fade-in">
           Real WhatsApp: message the test number from a verified recipient phone to reach the same engine.
         </p>
+        <p className="text-xs text-white/40 text-center mt-2 animate-fade-in">
+          <Link href="/privacy" className="hover:text-white/70 underline underline-offset-2">
+            Privacy Policy
+          </Link>
+        </p>
       </div>
     </div>
   );

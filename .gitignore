@@ -45,6 +45,9 @@ yarn-error.log*
 # public for Render's git-URL deploy, these must never leave the local machine.
 /SEC Whatsapp/
 
+# Claude Code session-local state, not part of the app.
+/.claude/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import type { Contact, PropensityBand } from "@prisma/client";
+import type { Contact, PropensityBand, Sentiment } from "@prisma/client";
 
 /** FR-C07 — propensity scoring, updated as profile fields and engagement change.
  *
@@ -28,7 +28,8 @@ export function computePropensityScore(
     | "employmentStatus"
     | "entranceStatus"
   >,
-  messageCount: number
+  messageCount: number,
+  lastSentiment?: Sentiment | null
 ): number {
   let score = 0;
 
@@ -58,7 +59,13 @@ export function computePropensityScore(
   if (messageCount >= 10) score += 15;
   else if (messageCount >= 5) score += 8;
 
-  return Math.min(100, score);
+  // A student who reads as engaged/positive in recent turns is worth surfacing to Sales
+  // sooner; sustained negative sentiment is a soft signal to cool a lead down, not just a
+  // handover trigger.
+  if (lastSentiment === "POSITIVE") score += 10;
+  else if (lastSentiment === "NEGATIVE") score -= 10;
+
+  return Math.max(0, Math.min(100, score));
 }
 
 export function scoreToBand(score: number): PropensityBand {
@@ -67,11 +74,20 @@ export function scoreToBand(score: number): PropensityBand {
   return "LOW";
 }
 
+/** Sales-facing label for the same band — "lead temperature" in the admin Leads table
+ * and CSV export.
+ */
+export function bandToTemperature(band: PropensityBand | null): "Hot" | "Warm" | "Cold" {
+  if (band === "HIGH") return "Hot";
+  if (band === "MEDIUM") return "Warm";
+  return "Cold";
+}
+
 export async function recomputeAndPersistPropensity(contactId: string): Promise<void> {
   const contact = await prisma.contact.findUniqueOrThrow({ where: { id: contactId } });
   const messageCount = await prisma.message.count({ where: { contactId, direction: "INBOUND" } });
 
-  const score = computePropensityScore(contact, messageCount);
+  const score = computePropensityScore(contact, messageCount, contact.lastSentiment);
   const band = scoreToBand(score);
 
   await prisma.contact.update({

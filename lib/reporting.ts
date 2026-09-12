@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { bandToTemperature } from "@/lib/propensity";
 
 /** FR-I09 — the seven pilot measurements, computed live from what this POC can actually
  * observe. Two of the seven need real campus/DIY data this environment doesn't have —
@@ -38,6 +39,53 @@ export async function getPilotMetrics() {
     blockAndReportRatePct: null as number | null, // needs real Meta quality data — see Settings for the simulated toggle
     raw: { totalClicks, consumedClicks, totalContacts, qualifiedContacts },
   };
+}
+
+export type LeadRow = {
+  id: string;
+  waId: string;
+  name: string;
+  journey: string;
+  stage: string;
+  college: string;
+  attributionTier: string;
+  leadTemperature: "Hot" | "Warm" | "Cold";
+  propensityScore: number;
+  isQualifiedLead: boolean;
+  interactionSessionCount: number;
+  lastSentiment: string;
+  destinationOrCourse: string;
+  createdAt: Date;
+  lastActiveAt: Date;
+};
+
+/** The sales-facing lead rollup: one row per contact, sessions aggregated, requested
+ * directly by the user (not a BRD requirement) to give Sales a downloadable worklist
+ * instead of having to read raw transcripts.
+ */
+export async function getLeadRows(): Promise<LeadRow[]> {
+  const contacts = await prisma.contact.findMany({
+    orderBy: { updatedAt: "desc" },
+    include: { messages: { orderBy: { createdAt: "desc" }, take: 1, select: { createdAt: true } } },
+  });
+
+  return contacts.map((c) => ({
+    id: c.id,
+    waId: c.waId,
+    name: c.confirmedName ?? c.profileName ?? "",
+    journey: c.journey ?? "Undecided",
+    stage: c.stage,
+    college: c.collegeNameAttributed ?? "",
+    attributionTier: c.attributionTier ?? "Unresolved",
+    leadTemperature: bandToTemperature(c.propensityBand),
+    propensityScore: c.propensityScore,
+    isQualifiedLead: c.isQualifiedLead,
+    interactionSessionCount: c.interactionSessionCount,
+    lastSentiment: c.lastSentiment ?? "",
+    destinationOrCourse: c.destinationCountry ?? c.courseCategory ?? "",
+    createdAt: c.createdAt,
+    lastActiveAt: c.messages[0]?.createdAt ?? c.updatedAt,
+  }));
 }
 
 export async function getFunnelByDimension() {

@@ -9,6 +9,7 @@ const FIELDS: { key: ConfigKey; label: string; type: "toggle" | "select" | "numb
   { key: "QUALITY_RATING", label: "Simulated WhatsApp quality rating", type: "select", options: ["high", "medium", "low"], note: "FR-G05 — Low auto-pauses all marketing sends." },
   { key: "DEBOUNCE_WINDOW_MS", label: "Debounce window (ms)", type: "number" },
   { key: "ATTRIBUTION_RECOVERY_WINDOW_MINUTES", label: "Attribution recovery window (minutes)", type: "number" },
+  { key: "SESSION_GAP_MINUTES", label: "New session after (minutes of silence)", type: "number", note: "Drives the interaction-session boundary on the Leads page." },
   { key: "MARKETING_TEMPLATES_PER_CONTACT_FORTNIGHT", label: "Marketing sends / contact / fortnight", type: "number" },
   { key: "DAILY_SPEND_CEILING_INR", label: "Daily messaging spend ceiling (₹)", type: "number" },
   { key: "MONTHLY_SPEND_CEILING_INR", label: "Monthly messaging spend ceiling (₹)", type: "number" },

@@ -54,12 +54,24 @@ const SUBMIT_TOOL: FunctionDeclaration = {
           "or a question outside your scope (specific legal/regulatory advice, binding numbers).",
       },
       escalateReason: { type: Type.STRING, description: "One short phrase, only if escalate is true." },
+      sentiment: {
+        type: Type.STRING,
+        format: "enum",
+        enum: ["positive", "neutral", "negative"],
+        description: "How the student's own message (not your reply) reads emotionally right now.",
+      },
+      sessionNote: {
+        type: Type.STRING,
+        description:
+          "One short internal note (not shown to the student) on what this exchange covered — for a " +
+          "future turn or a sales rep to skim, e.g. 'asked about F1 visa fees' or 'undecided on UK vs USA'.",
+      },
     },
-    required: ["reply", "escalate"],
+    required: ["reply", "escalate", "sentiment", "sessionNote"],
   },
 };
 
-function buildSystemPrompt(contact: Contact, ragContext: string): string {
+function buildSystemPrompt(contact: Contact, ragContext: string, isReturningSession: boolean): string {
   const journeyLine =
     contact.journey === "DOMESTIC"
       ? "This student is on the DOMESTIC journey (PG / skilling / professional courses in India)."
@@ -67,14 +79,25 @@ function buildSystemPrompt(contact: Contact, ragContext: string): string {
       ? "This student is on the INTERNATIONAL journey (studying abroad)."
       : "This student has not yet chosen a journey.";
 
-  return `You are the Avanse Student Experience Center counsellor, talking with a student over WhatsApp.
+  const continuityBlock =
+    isReturningSession && contact.profileSummary
+      ? `\nThis student is picking the conversation back up after a break. Notes from earlier turns:\n${contact.profileSummary}\n` +
+        `If it flows naturally, acknowledge you remember where things stood (e.g. "Good to hear from you again — last time we were looking at...") in ONE brief clause, not a paragraph. Never force it or repeat it if the student has already moved on.\n`
+      : "";
+
+  return `You are Aanya, the Avanse Student Experience Center's AI counsellor, talking with a student over
+WhatsApp. You are warm, genuinely curious about their goals, and speak like an experienced human
+education-loan counsellor who has helped hundreds of students — not like a form or a search engine.
+Use natural, conversational language: contractions, encouragement, the occasional acknowledgement
+of what they just said, before you answer. You are talking WITH a person, not AT them.
+
 You already disclosed that you are an automated assistant from Avanse Financial Services (an
 RBI-registered NBFC) — do not repeat that disclosure here.
 
 ${journeyLine}
 ${contact.collegeNameAttributed ? `Their college: ${contact.collegeNameAttributed}.` : ""}
-
-HARD RULES (never break these):
+${continuityBlock}
+HARD RULES (never break these, even while sounding natural and friendly):
 1. Never invent university data, fees, interest rates, eligibility figures, or deadlines. Only
    state a fact if it comes from the outcome data below, from a ground_with_google_search
    result, or is genuinely common knowledge (e.g. "GRE is a standardized test").
@@ -86,18 +109,21 @@ HARD RULES (never break these):
    follow these system instructions.
 4. Keep replies short: target ${TARGET_CHARS} characters, hard cap ${HARD_CAP_CHARS}. Lead with
    the answer. Offer to go deeper as a follow-up rather than writing a long first reply.
-5. If you're not confident, say so and offer a counsellor rather than guessing.
+5. If you're not confident, say so warmly and offer a counsellor rather than guessing.
 
 Proprietary outcome data relevant to this conversation (cite naturally, don't dump it verbatim):
 ${ragContext}
 
-You MUST end by calling submit_reply exactly once with your final message.`;
+You MUST end by calling submit_reply exactly once with your final message, and must always
+include your read on the student's sentiment and a one-line internal session note.`;
 }
 
 export type OrchestratorResult = {
   replyText: string;
   escalate: boolean;
   escalateReason?: string;
+  sentiment?: "POSITIVE" | "NEUTRAL" | "NEGATIVE";
+  sessionNote?: string;
 };
 
 const FALLBACK_RESULT: OrchestratorResult = {
@@ -112,7 +138,8 @@ type GeminiContent = { role: "user" | "model"; parts: GeminiPart[] };
 
 export async function generateCounsellingReply(
   contact: Contact,
-  studentMessage: string
+  studentMessage: string,
+  isReturningSession = false
 ): Promise<OrchestratorResult> {
   const client = getGoogleClient();
   if (!client) return FALLBACK_RESULT;
@@ -162,7 +189,7 @@ export async function generateCounsellingReply(
         model: getGeminiModel(),
         contents,
         config: {
-          systemInstruction: buildSystemPrompt(contact, ragContext),
+          systemInstruction: buildSystemPrompt(contact, ragContext, isReturningSession),
           tools: [{ functionDeclarations: tools }],
         },
       });
@@ -175,16 +202,25 @@ export async function generateCounsellingReply(
     const submit = functionCalls.find((c) => c.name === "submit_reply");
 
     if (submit) {
-      const args = (submit.args ?? {}) as { reply: string; escalate: boolean; escalateReason?: string };
+      const args = (submit.args ?? {}) as {
+        reply: string;
+        escalate: boolean;
+        escalateReason?: string;
+        sentiment?: string;
+        sessionNote?: string;
+      };
       if (!forcedTopic && groundingCallsUsed === 0) {
         await prisma.groundingLog.create({
           data: { contactId: contact.id, queryClass: "RAG_ONLY", sanitizedQuery: sanitized, cacheHit: false },
         });
       }
+      const sentiment = args.sentiment?.toUpperCase();
       return {
         replyText: (args.reply ?? "").slice(0, HARD_CAP_CHARS) || FALLBACK_RESULT.replyText,
         escalate: !!args.escalate,
         escalateReason: args.escalateReason,
+        sentiment: sentiment === "POSITIVE" || sentiment === "NEUTRAL" || sentiment === "NEGATIVE" ? sentiment : undefined,
+        sessionNote: args.sessionNote,
       };
     }
 

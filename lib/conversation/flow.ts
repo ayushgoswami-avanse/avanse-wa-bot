@@ -10,6 +10,7 @@ import { recomputeAndPersistPropensity } from "@/lib/propensity";
 import { retrieveInternationalOutcomes, retrieveDomesticOutcomes, formatOutcomesForPrompt } from "@/lib/conversation/rag";
 import { requestTier1Eligibility, eligibilityDisclaimerText } from "@/lib/eligibility";
 import { mintHandoffToken, syncToProcessioIfGated } from "@/lib/handoff";
+import { touchSession, recordTurnInsights, closeSessionSnapshot } from "@/lib/conversation/sessions";
 import { getConfigBool } from "@/lib/config";
 import type { OutboundPayload } from "@/lib/whatsapp/types";
 import resourcesData from "@/data/resources.json";
@@ -175,6 +176,23 @@ async function sendAlumniMatches(contact: Contact): Promise<void> {
   });
 }
 
+/** Runs one AI counselling turn and folds the model's own sentiment/session-note read
+ * back into the session + rolling profile summary (lib/conversation/sessions.ts) — this
+ * is what lets a later turn (or a sales rep) know what was actually discussed.
+ */
+async function runCounselling(
+  contact: Contact,
+  text: string,
+  sessionId: string,
+  isNewSession: boolean
+): Promise<{ escalate: boolean; escalateReason?: string }> {
+  const result = await generateCounsellingReply(contact, text, isNewSession);
+  await send(contact, { kind: "text", body: result.replyText });
+  await recordTurnInsights(contact.id, sessionId, { sentiment: result.sentiment, sessionNote: result.sessionNote });
+  await recomputeAndPersistPropensity(contact.id);
+  return { escalate: result.escalate, escalateReason: result.escalateReason };
+}
+
 async function escalateToHuman(contact: Contact, reason: "EXPLICIT_REQUEST" | "NEGATIVE_SENTIMENT" | "COMPLEX_OR_HIGH_VALUE" | "COUNSELLOR_REFUSAL") {
   await prisma.handover.create({ data: { contactId: contact.id, reason } });
   await setStage(contact.id, "HUMAN_HANDOVER");
@@ -185,6 +203,26 @@ export async function handleInboundMessage(contactId: string, turn: InboundTurn)
   const contact = await prisma.contact.findUniqueOrThrow({ where: { id: contactId } });
   const text = (turn.text ?? turn.interactiveReplyTitle ?? "").trim();
 
+  // Every inbound message counts toward an interaction session, and a gap since the last
+  // one may mean this is the student picking things back up after a break (PRD §5.3).
+  const { sessionId, isNewSession } = await touchSession(contact);
+  const isReturningSession = isNewSession && contact.interactionSessionCount > 0;
+
+  try {
+    await handleInboundMessageInStage(contact, turn, text, sessionId, isReturningSession);
+  } finally {
+    const fresh = await prisma.contact.findUnique({ where: { id: contactId } });
+    if (fresh) await closeSessionSnapshot(fresh, sessionId);
+  }
+}
+
+async function handleInboundMessageInStage(
+  contact: Contact,
+  turn: InboundTurn,
+  text: string,
+  sessionId: string,
+  isReturningSession: boolean
+): Promise<void> {
   // FR-B08 — checked before anything else, in every stage.
   if (text && isOptOutMessage(text)) {
     await recordOptOut(contact.id);
@@ -286,8 +324,7 @@ export async function handleInboundMessage(contactId: string, turn: InboundTurn)
         }
       } else if (text) {
         // FR-C03 — answer the student's own question first, THEN re-ask the same pending field.
-        const result = await generateCounsellingReply(contact, text);
-        await send(contact, { kind: "text", body: result.replyText });
+        const result = await runCounselling(contact, text, sessionId, isReturningSession);
         if (result.escalate) {
           await escalateToHuman(contact, "COUNSELLOR_REFUSAL");
           return;
@@ -407,8 +444,7 @@ export async function handleInboundMessage(contactId: string, turn: InboundTurn)
         }
       }
 
-      const result = await generateCounsellingReply(contact, text);
-      await send(contact, { kind: "text", body: result.replyText });
+      const result = await runCounselling(contact, text, sessionId, isReturningSession);
       if (result.escalate) {
         await escalateToHuman(contact, "NEGATIVE_SENTIMENT");
       }

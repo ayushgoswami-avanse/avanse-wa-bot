@@ -27,6 +27,7 @@ Updated: 2026-09-12 by staff_engineer - initial POC model
 | `CostLedgerEntry` | FR-I06/I07 | Messaging + AI spend, by category |
 | `ProcessioSyncLog` | FR-F05 | Every sync attempt to the mocked Processio endpoint |
 | `SystemConfig` | NFR-26 | Runtime-editable feature flags/caps/allow-lists |
+| `InteractionSession` | user feedback (not a BRD item) | One row per burst of activity: message count, AI-classified sentiment, a rolling summary, and a snapshot of profiling fields captured — the basis for the admin Leads page and CSV export |
 
 ## Data rules
 - Timezone / timestamp convention: UTC, Prisma `DateTime` (JS `Date`) throughout.

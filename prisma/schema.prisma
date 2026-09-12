@@ -60,6 +60,12 @@ enum PropensityBand {
   LOW
 }
 
+enum Sentiment {
+  POSITIVE
+  NEUTRAL
+  NEGATIVE
+}
+
 enum HandoverReason {
   EXPLICIT_REQUEST
   NEGATIVE_SENTIMENT
@@ -184,6 +190,8 @@ model Contact {
   propensityBand        PropensityBand?
 
   profileSummary        String?  @db.Text // maintained rolling summary injected into model context
+  lastSentiment         Sentiment? // most recently classified student sentiment, any stage
+  interactionSessionCount Int    @default(0) // denormalised count of InteractionSession rows
 
   optedOutMarketing     Boolean  @default(false)
   optedOutAt            DateTime?
@@ -206,6 +214,7 @@ model Contact {
   alumniConnects        AlumniConnect[]
   groundingLogs         GroundingLog[]
   lastTouchEvents       LastTouchEvent[]
+  interactionSessions   InteractionSession[]
 
   @@index([waId])
   @@index([journey])
@@ -494,6 +503,28 @@ model ProcessioSyncLog {
   succeeded      Boolean
   errorMessage   String?
   createdAt      DateTime @default(now())
+}
+
+/// Aggregates one burst of back-and-forth into a single analytical row: how many
+/// messages, what was discussed, how the student seemed, and what data was captured —
+/// exactly what a sales rep skimming a lead needs without reading the raw transcript.
+/// A new session opens when a contact messages again after SESSION_GAP_MINUTES of
+/// inactivity (lib/conversation/sessions.ts); the previous open one is closed at that point.
+model InteractionSession {
+  id               String     @id @default(cuid())
+  contactId        String
+  contact          Contact    @relation(fields: [contactId], references: [id])
+  startedAt        DateTime   @default(now())
+  endedAt          DateTime?
+  messageCount     Int        @default(0)
+  summary          String?    @db.Text
+  sentiment        Sentiment?
+  stageAtEnd       String?
+  dataSnapshotJson String?    @db.Text // profiling fields captured as of this session
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+
+  @@index([contactId, startedAt])
 }
 
 /// FR-A10 — channel failover config, editable without redeployment.

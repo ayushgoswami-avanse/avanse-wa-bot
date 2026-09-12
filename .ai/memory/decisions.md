@@ -2,7 +2,7 @@
 
 Status: draft
 Owner: Principal Architect
-Updated: 2026-09-12 by staff_engineer — added ADR-006 (single Google provider)
+Updated: 2026-09-12 by staff_engineer — added ADR-007 (interaction sessions + lead rollup)
 
 **Append-only.** Never edit or delete a past decision. To change course, add a new ADR
 with `Supersedes: ADR-00X`. The value of this file is that it explains *why* the system
@@ -232,3 +232,51 @@ invocations, exactly as before.
 **Confidence:** verified — implemented and the request/response shapes (`functionDeclarations`,
 `response.functionCalls`, `functionCall`/`functionResponse` parts) confirmed via live
 documentation search before writing the code, not assumed from training data.
+
+---
+
+## ADR-007 — Interaction sessions, sentiment, and a lead rollup (direct user feedback, not a BRD item)
+
+- **Date:** 2026-09-12
+- **Status:** accepted
+- **Deciders:** user
+- **Phase:** harden
+
+**Context**
+After the first demo pass, the user asked for three things the BRD doesn't specify: (1) a
+warmer, more human counsellor tone; (2) conversational continuity across a gap ("start
+from where they left off"); (3) session-level analytics (summary, sentiment, data
+collected) rolled up into a lead-level table with Hot/Warm/Cold categorisation,
+downloadable as CSV for Sales.
+
+**Decision**
+- Rewrote the orchestrator's persona and added `sentiment` + `sessionNote` as *required*
+  fields on the existing `submit_reply` tool call, rather than a separate classification
+  call — one model call still does the whole turn.
+- Added `InteractionSession` (gap-bounded via `SESSION_GAP_MINUTES`, default 30) holding a
+  rolling summary, last sentiment, message count, and a snapshot of profiling fields.
+- Reused the existing `propensityBand` as the "lead temperature" (labelled Hot/Warm/Cold
+  in the UI/CSV) rather than inventing a parallel scoring system, and folded sentiment
+  into its heuristic (`lib/propensity.ts`) so temperature reacts to how the conversation
+  is actually going, not just profile completeness.
+- Continuity is implemented by feeding `Contact.profileSummary` (already in the schema,
+  previously unused) back into the system prompt only when a session reopens after a gap
+  — a one-line, optional acknowledgement, not a forced "welcome back" every turn.
+
+**Rationale**
+Reusing `propensityBand`/`profileSummary` instead of adding parallel fields keeps one
+source of truth for "how warm is this lead" and avoids a second, competing signal. Putting
+sentiment on the same tool call as the reply avoids a second Gemini round-trip per turn.
+
+**Consequences**
+- Accepted: the `submit_reply` tool call is now doing three jobs (reply, escalation,
+  analytics) in one call — acceptable for a POC, would want to reconsider if any one of
+  those needs independent latency/reliability guarantees later.
+- Enables: `/admin/leads` (table + CSV export) and per-session summaries on the transcript
+  detail page.
+- Revisit when: this needs to scale past "one Gemini call classifies its own turn" — e.g.
+  a dedicated sentiment/quality model, or session boundaries driven by explicit signals
+  (e.g. a "goodbye") rather than only a time gap.
+
+**Confidence:** verified — implemented; not yet run through the same live smoke test as
+the rest of the golden path (see backlog).

@@ -21,6 +21,7 @@ export const CONFIG_DEFAULTS = {
     "visa rules,visa fees,application deadline,intake deadline,forex,remittance limit,regulatory change,institution requirement", // FR-D04
   SEMANTIC_CACHE_TTL_MINUTES: "1440", // FR-D07
   PROPENSITY_SYNC_GATE_MIN_BAND: "MEDIUM", // FR-F04 — only Medium+ leads sync to Processio
+  SESSION_GAP_MINUTES: "30", // a new inbound message after this much silence starts a new InteractionSession
 } as const;
 
 export type ConfigKey = keyof typeof CONFIG_DEFAULTS;

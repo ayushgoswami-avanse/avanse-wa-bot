@@ -229,7 +229,7 @@ export async function handleInboundMessage(contactId: string, turn: InboundTurn)
     }
 
     case "AWAITING_JOURNEY_FORK": {
-      const journeyMap: Record<string, Journey> = { journey_india: "DOMESTIC", journey_abroad: "INTERNATIONAL" };
+      const journeyMap: Record<string, "INTERNATIONAL" | "DOMESTIC"> = { journey_india: "DOMESTIC", journey_abroad: "INTERNATIONAL" };
       const chosen = turn.interactiveReplyId ? journeyMap[turn.interactiveReplyId] : undefined;
 
       if (chosen) {

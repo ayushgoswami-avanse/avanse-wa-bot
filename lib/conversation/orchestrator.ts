@@ -1,4 +1,5 @@
 import type { Contact } from "@prisma/client";
+import { Type, type FunctionDeclaration } from "@google/genai";
 import { prisma } from "@/lib/prisma";
 import { getGoogleClient, getGeminiModel } from "@/lib/googleClient";
 import { retrieveInternationalOutcomes, retrieveDomesticOutcomes, formatOutcomesForPrompt } from "./rag";
@@ -17,16 +18,6 @@ import { runGroundedSearch, sanitizeQueryForGrounding, isAlwaysGroundTopic } fro
 const HARD_CAP_CHARS = 1024; // FR-D09
 const TARGET_CHARS = 600;
 
-type FunctionDeclaration = {
-  name: string;
-  description: string;
-  parameters: {
-    type: "object";
-    properties: Record<string, { type: string; description?: string }>;
-    required: string[];
-  };
-};
-
 const GROUND_TOOL: FunctionDeclaration = {
   name: "ground_with_google_search",
   description:
@@ -37,8 +28,8 @@ const GROUND_TOOL: FunctionDeclaration = {
     "questions the outcome data already answers, or for anything you can answer confidently " +
     "without a live lookup.",
   parameters: {
-    type: "object",
-    properties: { query: { type: "string", description: "The specific fact to look up, in your own words." } },
+    type: Type.OBJECT,
+    properties: { query: { type: Type.STRING, description: "The specific fact to look up, in your own words." } },
     required: ["query"],
   },
 };
@@ -49,20 +40,20 @@ const SUBMIT_TOOL: FunctionDeclaration = {
     "Call this exactly once, as the LAST step, with the message to send the student. Always " +
     "call this even if you also called ground_with_google_search first.",
   parameters: {
-    type: "object",
+    type: Type.OBJECT,
     properties: {
       reply: {
-        type: "string",
+        type: Type.STRING,
         description: `The reply to send. Target under ${TARGET_CHARS} characters, hard cap ${HARD_CAP_CHARS}. Plain language, no markdown.`,
       },
       escalate: {
-        type: "boolean",
+        type: Type.BOOLEAN,
         description:
           "True if this needs a human counsellor instead of (or in addition to) your reply: explicit " +
           "request for a human, sustained frustration/negative sentiment, a complex or high-value case, " +
           "or a question outside your scope (specific legal/regulatory advice, binding numbers).",
       },
-      escalateReason: { type: "string", description: "One short phrase, only if escalate is true." },
+      escalateReason: { type: Type.STRING, description: "One short phrase, only if escalate is true." },
     },
     required: ["reply", "escalate"],
   },
@@ -184,7 +175,7 @@ export async function generateCounsellingReply(
     const submit = functionCalls.find((c) => c.name === "submit_reply");
 
     if (submit) {
-      const args = submit.args as { reply: string; escalate: boolean; escalateReason?: string };
+      const args = (submit.args ?? {}) as { reply: string; escalate: boolean; escalateReason?: string };
       if (!forcedTopic && groundingCallsUsed === 0) {
         await prisma.groundingLog.create({
           data: { contactId: contact.id, queryClass: "RAG_ONLY", sanitizedQuery: sanitized, cacheHit: false },
@@ -211,7 +202,7 @@ export async function generateCounsellingReply(
     for (const call of functionCalls) {
       if (call.name === "ground_with_google_search") {
         groundingCallsUsed++;
-        const query = (call.args as { query: string }).query;
+        const query = ((call.args ?? {}) as { query: string }).query;
         const grounded = await runGroundedSearch(contact.id, query);
         responseParts.push({
           functionResponse: {

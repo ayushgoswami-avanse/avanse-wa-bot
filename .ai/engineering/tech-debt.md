@@ -29,6 +29,13 @@ None yet — codebase is new.
 ## Landmines
 - **Prisma major version**: do not blindly `npm update prisma` — 8.x is an RC platform
   rewrite with a different CLI. See ADR-005.
+- **Prisma 7 config split**: the datasource connection URL lives in `prisma.config.ts`
+  (used by the CLI: generate/db push/migrate), NOT in `prisma/schema.prisma`'s datasource
+  block anymore. `PrismaClient` at runtime separately requires an explicit driver adapter
+  (`@prisma/adapter-pg`, wired in `lib/prisma.ts` and `prisma/seed.ts`) — `new
+  PrismaClient()` with no arguments throws in Prisma 7. Discovered via a failed Render
+  build (`Error: Prisma schema validation ... P1012 ... url is no longer supported in
+  schema files`) — this is a real behavior change from Prisma 5/6, not a POC shortcut.
 - **`lib/messaging/sendGovernor.ts` is the only path allowed to call the Meta client or
   write an outbound `Message` row.** Any new send path (a future scheduled nurture job,
   say) MUST go through `sendOutboundMessage`, or FR-G02 silently stops being true.

@@ -6,9 +6,10 @@ generator client {
   provider = "prisma-client-js"
 }
 
+// Prisma 7: the connection URL lives in prisma.config.ts, not here (see that file's
+// comment, and ADR note in .ai/engineering/tech-debt.md D-013).
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 enum Journey {

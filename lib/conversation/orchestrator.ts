@@ -126,6 +126,21 @@ export type OrchestratorResult = {
   sessionNote?: string;
 };
 
+// Safety net for when the model omits sentiment despite it being a required tool
+// argument (observed in practice — see tech-debt D-014). Keyword-based, not a substitute
+// for the model's own read, only a floor under it.
+const POSITIVE_WORDS = ["excited", "great", "awesome", "thank", "thanks", "love", "happy", "helpful", "perfect", "good"];
+const NEGATIVE_WORDS = ["nervous", "worried", "confused", "frustrat", "angry", "upset", "scared", "annoyed", "bad", "problem", "issue", "not working", "waste"];
+
+function classifySentimentFallback(text: string): "POSITIVE" | "NEUTRAL" | "NEGATIVE" {
+  const lower = text.toLowerCase();
+  const hasNegative = NEGATIVE_WORDS.some((w) => lower.includes(w));
+  const hasPositive = POSITIVE_WORDS.some((w) => lower.includes(w));
+  if (hasNegative && !hasPositive) return "NEGATIVE";
+  if (hasPositive && !hasNegative) return "POSITIVE";
+  return "NEUTRAL";
+}
+
 const FALLBACK_RESULT: OrchestratorResult = {
   replyText:
     "Sorry, I'm having trouble responding right now. Let me connect you with a counsellor who can help.",
@@ -215,12 +230,16 @@ export async function generateCounsellingReply(
         });
       }
       const sentiment = args.sentiment?.toUpperCase();
+      const parsedSentiment = sentiment === "POSITIVE" || sentiment === "NEUTRAL" || sentiment === "NEGATIVE" ? sentiment : undefined;
+      if (!parsedSentiment || !args.sessionNote) {
+        console.log(`[orchestrator] submit_reply missing sentiment/sessionNote — raw args: ${JSON.stringify(submit.args)}`);
+      }
       return {
         replyText: (args.reply ?? "").slice(0, HARD_CAP_CHARS) || FALLBACK_RESULT.replyText,
         escalate: !!args.escalate,
         escalateReason: args.escalateReason,
-        sentiment: sentiment === "POSITIVE" || sentiment === "NEUTRAL" || sentiment === "NEGATIVE" ? sentiment : undefined,
-        sessionNote: args.sessionNote,
+        sentiment: parsedSentiment ?? classifySentimentFallback(studentMessage),
+        sessionNote: args.sessionNote || studentMessage.slice(0, 100),
       };
     }
 

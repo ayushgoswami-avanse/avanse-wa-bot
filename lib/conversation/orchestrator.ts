@@ -91,7 +91,8 @@ const PROFILE_TOOL: FunctionDeclaration = {
           "One short line on who this person is underneath the facts — what's actually driving them, " +
           "what they're anxious about, how they make decisions (e.g. 'wants to prove himself to family, " +
           "very cost-anxious, decides slowly and wants data'). This is what lets you — and later a human " +
-          "counsellor — talk to the person rather than the profile.",
+          "counsellor — talk to the person rather than the profile. Send ONLY what is genuinely new " +
+          "this turn; these accumulate, so never restate what you already recorded earlier.",
       },
     },
   },
@@ -188,8 +189,10 @@ HOW YOU TALK
   personality. A little humour when it fits.
 - Lead with the substance they came for. Be specific and concrete — "Germany's 18-month job-seeker
   visa after graduation" beats "Germany has good post-study options".
-- Short. Target ${TARGET_CHARS} characters, hard cap ${HARD_CAP_CHARS}. WhatsApp, not email. When you're
-  genuinely laying out options, a few "•" bullets read better than a paragraph — otherwise prose.
+- SHORT. This is WhatsApp, not email. Aim for ${TARGET_CHARS} characters and never exceed
+  ${HARD_CAP_CHARS} — anything longer is cut off before the student sees it, so finish your thought
+  well before then. Two or three short paragraphs, or a few "•" bullets when you're genuinely
+  laying out options. If you have more to say, say the most useful part and offer the rest.
 - At most ONE question per message, and only when it genuinely helps you advise them better. Never
   stack questions. Never run a questionnaire. If you need several things, earn them over several
   turns, in between actually being useful.
@@ -237,6 +240,22 @@ export type OrchestratorResult = {
 // for the model's own read, only a floor under it.
 const POSITIVE_WORDS = ["excited", "great", "awesome", "thank", "thanks", "love", "happy", "helpful", "perfect", "good"];
 const NEGATIVE_WORDS = ["nervous", "worried", "confused", "frustrat", "angry", "upset", "scared", "annoyed", "bad", "problem", "issue", "not working", "waste"];
+
+/** FR-D09's hard cap used to be a blind .slice(), which cut live replies off mid-word
+ * ("...still want world-class education and"). Ends on the last complete sentence or bullet
+ * instead, so an over-long reply reads as finished rather than broken.
+ */
+function trimReply(raw: string): string {
+  const text = raw.trim();
+  if (text.length <= HARD_CAP_CHARS) return text;
+
+  const slice = text.slice(0, HARD_CAP_CHARS);
+  const boundary = Math.max(slice.lastIndexOf(". "), slice.lastIndexOf("\n"), slice.lastIndexOf("! "), slice.lastIndexOf("? "));
+  if (boundary > HARD_CAP_CHARS * 0.5) return slice.slice(0, boundary + 1).trim();
+
+  const lastSpace = slice.lastIndexOf(" ");
+  return `${(lastSpace > 0 ? slice.slice(0, lastSpace) : slice).trim()}…`;
+}
 
 function classifySentimentFallback(text: string): "POSITIVE" | "NEUTRAL" | "NEGATIVE" {
   const lower = text.toLowerCase();
@@ -309,9 +328,14 @@ async function applyProfileUpdate(contactId: string, args: Record<string, unknow
   if (psycheNote) {
     const contact = await prisma.contact.findUnique({ where: { id: contactId }, select: { psycheNotes: true } });
     const prior = contact?.psycheNotes ?? "";
-    // Capped and append-only: a rolling read that stays cheap to inject into every prompt.
-    data.psycheNotes = (prior ? `${prior}\n- ${psycheNote}` : `- ${psycheNote}`).slice(-600);
-    captured.push("psycheNote");
+    // The model tends to re-send a cumulative read each turn, which stacked near-duplicate
+    // lines. Skip anything already covered, and keep the whole thing capped so it stays
+    // cheap to inject into every prompt.
+    const isRedundant = prior.toLowerCase().includes(psycheNote.toLowerCase().slice(0, 40));
+    if (!isRedundant) {
+      data.psycheNotes = (prior ? `${prior}\n- ${psycheNote}` : `- ${psycheNote}`).slice(-600);
+      captured.push("psycheNote");
+    }
   }
 
   if (Object.keys(data).length === 0) return captured;
@@ -408,7 +432,7 @@ export async function generateCounsellingReply(
       const sentiment = args.sentiment?.toUpperCase();
       const parsedSentiment = sentiment === "POSITIVE" || sentiment === "NEUTRAL" || sentiment === "NEGATIVE" ? sentiment : undefined;
       return {
-        replyText: (args.reply ?? "").slice(0, HARD_CAP_CHARS) || FALLBACK_RESULT.replyText,
+        replyText: trimReply(args.reply ?? "") || FALLBACK_RESULT.replyText,
         escalate: !!args.escalate,
         escalateReason: args.escalateReason,
         sentiment: parsedSentiment ?? classifySentimentFallback(studentMessage),
@@ -423,7 +447,7 @@ export async function generateCounsellingReply(
       if (text) {
         console.log("[orchestrator] model replied without calling submit_reply — using response.text and sentiment fallback");
         return {
-          replyText: text.slice(0, HARD_CAP_CHARS),
+          replyText: trimReply(text),
           escalate: false,
           sentiment: classifySentimentFallback(studentMessage),
           sessionNote: studentMessage.slice(0, 100),

@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import type { Message, Handover } from "@prisma/client";
 import ConversationView from "@/components/ConversationView";
 import DispositionPanel, { type NoteEntry } from "@/components/DispositionPanel";
+import ProfileFieldsPanel, { type ProfileFieldValues } from "@/components/ProfileFieldsPanel";
 import { useLiveThread, type ThreadMeta } from "@/components/useLiveThread";
 import SendBox from "./SendBox";
 import HandoverControls from "./HandoverControls";
@@ -17,6 +18,7 @@ export default function LiveAgentThread({
   templates,
   currentDisposition,
   initialNotes,
+  profileFields,
 }: {
   contactId: string;
   initialMessages: Message[];
@@ -26,6 +28,7 @@ export default function LiveAgentThread({
   templates: { name: string; category: string }[];
   currentDisposition: string;
   initialNotes: NoteEntry[];
+  profileFields: ProfileFieldValues;
 }) {
   const { messages, handover, inWindow, contact, refresh } = useLiveThread(contactId, {
     messages: initialMessages,
@@ -69,6 +72,10 @@ export default function LiveAgentThread({
 
         <div className="animate-slide-up stagger-2">
           <DispositionPanel contactId={contactId} currentDisposition={currentDisposition} initialNotes={initialNotes} />
+        </div>
+
+        <div className="animate-slide-up stagger-3">
+          <ProfileFieldsPanel contactId={contactId} initial={profileFields} />
         </div>
       </div>
     </div>

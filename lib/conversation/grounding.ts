@@ -20,7 +20,35 @@ export function sanitizeQueryForGrounding(rawText: string): string {
     .slice(0, 400);
 }
 
+// Deterministic, code-level safety net for FR-D04 — NOT the admin-editable allow-list
+// below. A live conversation showed the model confidently giving an application timeline
+// built on a stale training-cutoff sense of "now" for a phrasing ("tell me the application
+// timeline") that never matched the configurable CSV list at all ("application deadline"
+// is a different string). Relying only on an admin-curated substring list for something
+// this consequential is exactly how it goes quietly wrong — this regex net is broad by
+// design and reviewed as code, not config, so it can't silently drift out of date the way
+// a CSV can.
+const BUILT_IN_GROUNDING_TRIGGERS: { label: string; pattern: RegExp }[] = [
+  { label: "visa/immigration", pattern: /\bvisa|immigrat|\bpr\b|permanent residen|green card|h-?1b|\bopt\b|\bcpt\b|work permit|sponsorship|stem opt/i },
+  { label: "post-study work/PR pathway", pattern: /post.?study work|job.?seeker visa|residency pathway|pathway to (pr|citizenship)/i },
+  { label: "application timeline/deadline", pattern: /deadline|\btimeline\b|when (should|do|can) i apply|application (process|window|cycle|timeline)|intake (date|deadline|cycle)|admission (cycle|timeline|process)|apply (by|before)/i },
+  { label: "fees/tuition/cost", pattern: /\b(fees?|tuition|cost of (living|study|the course|the programme|the program)|how much (does|will|would) .* cost|price of (the )?(course|programme|program|degree))\b/i },
+  { label: "forex/currency", pattern: /exchange rate|forex|currency conversion|\busd to inr\b|\binr to usd\b|remittance/i },
+  { label: "rankings", pattern: /rank(ing)?|best (university|college|program|institute)|top \d+ (university|college|program)|qs ranking|times higher/i },
+  { label: "test dates/format", pattern: /(test|exam|gre|gmat|ielts|toefl|sat|cat|gate) (dates?|format|pattern|slots?|registration)/i },
+  { label: "scholarship/financial aid", pattern: /scholarship|fellowship|financial aid (deadline|amount)/i },
+  { label: "explicit recency", pattern: /\b(current(ly)?|this year|right now|as of (today|now)|latest|updated?) (rule|rate|fee|requirement|policy|deadline|number|figure)/i },
+];
+
+export function matchesBuiltInGroundingTrigger(sanitizedQuery: string): string | null {
+  const hit = BUILT_IN_GROUNDING_TRIGGERS.find((t) => t.pattern.test(sanitizedQuery));
+  return hit?.label ?? null;
+}
+
 export async function isAlwaysGroundTopic(sanitizedQuery: string): Promise<string | null> {
+  const builtIn = matchesBuiltInGroundingTrigger(sanitizedQuery);
+  if (builtIn) return builtIn;
+
   const topics = await getConfigList("GROUNDING_ALWAYS_ALLOW_TOPICS");
   const lower = sanitizedQuery.toLowerCase();
   return topics.find((t) => lower.includes(t.toLowerCase())) ?? null;

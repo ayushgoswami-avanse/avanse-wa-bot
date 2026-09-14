@@ -147,6 +147,12 @@ async function ensureConsentAndAgeGate(contact: Contact): Promise<boolean> {
   return true;
 }
 
+function pendingEligibilityPrompt(stage: string): string {
+  if (stage === "ELIGIBILITY_INCOME") return "What's the co-applicant's net monthly income (in ₹)? Just the number is fine.";
+  if (stage === "ELIGIBILITY_EMIS") return "And their existing monthly EMI obligations, if any (0 if none)?";
+  return "Roughly how much are you looking to borrow (in ₹)?";
+}
+
 async function handleQualificationIfNeeded(contact: Contact) {
   await recomputeAndPersistPropensity(contact.id);
   const fresh = await prisma.contact.findUniqueOrThrow({ where: { id: contact.id } });
@@ -244,7 +250,11 @@ async function runCounselling(
   isNewSession: boolean
 ): Promise<{ escalate: boolean; escalateReason?: string; consecutiveNegativeTurns: number }> {
   const result = await generateCounsellingReply(contact, text, isNewSession);
-  await send(contact, { kind: "text", body: result.replyText });
+  // A long, genuinely thorough answer arrives as consecutive messages rather than one
+  // truncated bubble — see orchestrator.ts's splitReply.
+  for (const segment of result.replySegments) {
+    await send(contact, { kind: "text", body: segment });
+  }
   const { consecutiveNegativeTurns } = await recordTurnInsights(contact.id, sessionId, {
     sentiment: result.sentiment,
     sessionNote: result.sessionNote,
@@ -392,7 +402,20 @@ async function handleInboundMessageInStage(
       };
 
       if (amount === null || !Number.isFinite(amount) || amount < 0) {
-        await send(contact, { kind: "text", body: "Please share just the number (e.g. 45000, or 1 lac / 5k)." });
+        // Router: a live conversation showed a student ask "what will the fees be, so I
+        // can tell you the loan amount" and get "please share just the number" on repeat —
+        // a real question flattened into a form-validation error. Anything that isn't a
+        // bare number gets an actual answer from Guru first (grounded if it needs to be),
+        // THEN the same numeric prompt — never just the error, and never silently drop the
+        // capture either.
+        if (text) {
+          const result = await runCounselling(contact, text, sessionId, isReturningSession);
+          if (result.escalate) {
+            await escalateToHuman(contact, classifyEscalationReason(result.escalateReason));
+            return;
+          }
+        }
+        await send(contact, { kind: "text", body: pendingEligibilityPrompt(contact.stage) });
         return;
       }
 

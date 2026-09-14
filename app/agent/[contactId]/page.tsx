@@ -1,8 +1,9 @@
 import { prisma } from "@/lib/prisma";
 import { getSession, canViewFinancials } from "@/lib/auth";
 import { computeServiceWindow } from "@/lib/messaging/sendGovernor";
-import SalesBriefCard, { type BriefFact } from "@/components/SalesBriefCard";
+import SalesBriefCard from "@/components/SalesBriefCard";
 import { buildSalesBrief } from "@/lib/salesBrief";
+import { buildLeadFacts } from "@/lib/leadFacts";
 import { computeCohort } from "@/lib/segmentation";
 import { bandToTemperature } from "@/lib/propensity";
 import { buildLeadTimeline } from "@/lib/timeline";
@@ -29,19 +30,7 @@ export default async function AgentThreadPage({ params }: { params: Promise<{ co
   const showFinancials = session ? canViewFinancials(session.role) : false;
   const brief = buildSalesBrief(contact, sessions, handover, handoffTokens);
   const cohort = computeCohort(contact);
-
-  const facts: BriefFact[] = [
-    { label: "Journey", value: contact.journey ?? "Undecided" },
-    { label: "Stage", value: contact.stage.replaceAll("_", " ").toLowerCase() },
-    { label: "Window", value: inWindow ? "Open" : "Closed" },
-    { label: "Attribution", value: contact.attributionTier ?? "—" },
-    { label: "Source", value: source.summary },
-    { label: "Sessions", value: String(contact.interactionSessionCount) },
-    { label: "Qualified", value: contact.isQualifiedLead ? "Yes" : "No" },
-    ...(showFinancials
-      ? [{ label: "Course", value: contact.destinationCountry ?? contact.courseCategory ?? "—" }]
-      : []),
-  ];
+  const facts = buildLeadFacts(contact, { inWindow, showFinancials, sourceSummary: source.summary });
 
   return (
     <div className="space-y-5">
@@ -70,6 +59,21 @@ export default async function AgentThreadPage({ params }: { params: Promise<{ co
         templates={templates.map((t) => ({ name: t.name, category: t.category }))}
         currentDisposition={contact.disposition}
         initialNotes={notes.map((n) => ({ id: n.id, body: n.body, createdAt: n.createdAt.toISOString(), agentName: n.author.displayName }))}
+        profileFields={{
+          confirmedName: contact.confirmedName ?? "",
+          journey: contact.journey ?? "",
+          destinationCountry: contact.destinationCountry ?? "",
+          degreeLevel: contact.degreeLevel ?? "",
+          intendedIntake: contact.intendedIntake ?? "",
+          currentYearOfStudy: contact.currentYearOfStudy ?? "",
+          testStatus: contact.testStatus ?? "",
+          admissionStatus: contact.admissionStatus ?? "",
+          courseCategory: contact.courseCategory ?? "",
+          targetInstitution: contact.targetInstitution ?? "",
+          intakeOrBatch: contact.intakeOrBatch ?? "",
+          employmentStatus: contact.employmentStatus ?? "",
+          entranceStatus: contact.entranceStatus ?? "",
+        }}
       />
     </div>
   );

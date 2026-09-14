@@ -53,12 +53,20 @@ export default function SalesBriefCard({
       )}
 
       <div className="flex flex-wrap gap-1.5 mt-3">
-        {facts.map((f) => (
-          <span key={f.label} className="inline-flex items-center gap-1 rounded-full bg-slate-50 border border-slate-200 px-2.5 py-1 text-[11px]">
-            <span className="text-slate-500">{f.label}</span>
-            <span className="font-medium text-slate-800">{f.value}</span>
-          </span>
-        ))}
+        {facts.map((f) => {
+          const isNull = f.value === "null";
+          return (
+            <span
+              key={f.label}
+              className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] ${
+                isNull ? "bg-amber-50 border-amber-200" : "bg-slate-50 border-slate-200"
+              }`}
+            >
+              <span className="text-slate-500">{f.label}</span>
+              <span className={isNull ? "italic text-amber-600" : "font-medium text-slate-800"}>{f.value}</span>
+            </span>
+          );
+        })}
       </div>
 
       <div className="mt-3 pt-3 border-t border-slate-100 space-y-1.5">

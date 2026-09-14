@@ -45,14 +45,17 @@ const OUTCOMES_TOOL: FunctionDeclaration = {
 const GROUND_TOOL: FunctionDeclaration = {
   name: "ground_with_google_search",
   description:
-    "Look up a CURRENT, live fact via Google Search. Use this ONLY for things that genuinely " +
-    "change over time and that you cannot be confident about from training data: visa rules, " +
-    "fees or processing times, post-study work and PR/residency pathways, application and intake " +
-    "deadlines, forex or remittance limits, recent regulatory changes, or a specific institution's " +
-    "current requirements. Do NOT use it for general guidance, opinions, or anything you can " +
-    "answer well yourself. The result comes back with real source URLs — always share the most " +
-    "relevant one in your reply (briefly, e.g. '(source: <url>)') so the student can verify it. " +
-    "That is what makes a live fact trustworthy instead of merely asserted.",
+    "Look up a CURRENT, live fact via Google Search. Use this for anything that genuinely changes " +
+    "over time and that your training data cannot be trusted on: visa rules, fees or tuition, " +
+    "processing/wait times, post-study work rights and PR/residency pathways, application or intake " +
+    "deadlines and timelines, forex or remittance limits, test dates or format changes, rankings or " +
+    "'best university for X' claims, scholarship or financial-aid windows, recent regulatory " +
+    "changes, or a specific institution's current requirements. If you catch yourself about to " +
+    "state a date, deadline, rule, rate, or ranking from memory, that is the signal to call this " +
+    "instead — your training cutoff means memory is exactly what fails here. Do NOT use it for " +
+    "general guidance, opinions, or timeless facts. The result comes back with real source URLs — " +
+    "always share the most relevant one in your reply (briefly, e.g. '(source: <url>)') so the " +
+    "student can verify it. That is what makes a live fact trustworthy instead of merely asserted.",
   parameters: {
     type: Type.OBJECT,
     properties: { query: { type: Type.STRING, description: "The specific fact to look up, in your own words." } },
@@ -166,8 +169,19 @@ function buildSystemPrompt(contact: Contact, isReturningSession: boolean, forced
         `Acknowledge you remember where things stood in ONE brief, natural clause — never a paragraph, and never if they've clearly moved on.\n`
       : "";
 
+  const today = new Date().toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" });
+
   return `You are Guru, a study and career counsellor at Avanse's Student Experience Center, talking with a
 student on WhatsApp.
+
+TODAY'S ACTUAL DATE IS ${today}. Your own training data has an earlier cutoff and your instinct for
+"now" is out of date — a live conversation showed you building an application timeline that started
+in the past because of this. Whenever you reason about intakes, deadlines, "this year", how far away
+something is, or anything else date-relative, anchor it to ${today}, not to whatever "current year"
+your training feels like. If a plan involves specific months/years, sanity-check them against
+${today} before sending. When in doubt about anything that could have changed since your training —
+a deadline, a rule, a rate, a ranking, a policy — that is exactly what ground_with_google_search is
+for. Reach for it rather than guess; a wrong specific is worse than a moment's delay to check.
 
 WHO YOU ARE
 You are a career counsellor first, and a financing expert only much later. Students come to you
@@ -228,7 +242,9 @@ sentiment and a one-line internal session note.`;
 }
 
 export type OrchestratorResult = {
-  replyText: string;
+  /** Almost always one element. More than one when the reply was long enough to split
+   * into consecutive WhatsApp messages rather than being cut to fit a single one. */
+  replySegments: string[];
   escalate: boolean;
   escalateReason?: string;
   sentiment?: "POSITIVE" | "NEUTRAL" | "NEGATIVE";
@@ -241,20 +257,42 @@ export type OrchestratorResult = {
 const POSITIVE_WORDS = ["excited", "great", "awesome", "thank", "thanks", "love", "happy", "helpful", "perfect", "good"];
 const NEGATIVE_WORDS = ["nervous", "worried", "confused", "frustrat", "angry", "upset", "scared", "annoyed", "bad", "problem", "issue", "not working", "waste"];
 
+const MAX_REPLY_SEGMENTS = 3;
+
 /** FR-D09's hard cap used to be a blind .slice(), which cut live replies off mid-word
- * ("...still want world-class education and"). Ends on the last complete sentence or bullet
- * instead, so an over-long reply reads as finished rather than broken.
+ * ("...still want world-class education and"). An over-long reply now splits into up to
+ * MAX_REPLY_SEGMENTS separate WhatsApp messages, each ending on a real sentence/paragraph
+ * boundary, instead of being cut to fit one bubble — a genuinely thorough answer reads as
+ * a person sending a couple of messages in a row, not as broken output.
  */
-function trimReply(raw: string): string {
+function splitReply(raw: string): string[] {
   const text = raw.trim();
-  if (text.length <= HARD_CAP_CHARS) return text;
+  if (!text) return [];
+  if (text.length <= HARD_CAP_CHARS) return [text];
 
-  const slice = text.slice(0, HARD_CAP_CHARS);
-  const boundary = Math.max(slice.lastIndexOf(". "), slice.lastIndexOf("\n"), slice.lastIndexOf("! "), slice.lastIndexOf("? "));
-  if (boundary > HARD_CAP_CHARS * 0.5) return slice.slice(0, boundary + 1).trim();
+  const segments: string[] = [];
+  let remaining = text;
 
-  const lastSpace = slice.lastIndexOf(" ");
-  return `${(lastSpace > 0 ? slice.slice(0, lastSpace) : slice).trim()}…`;
+  while (remaining.length > HARD_CAP_CHARS && segments.length < MAX_REPLY_SEGMENTS - 1) {
+    const slice = remaining.slice(0, HARD_CAP_CHARS);
+    const boundary = Math.max(slice.lastIndexOf("\n\n"), slice.lastIndexOf("\n"), slice.lastIndexOf(". "), slice.lastIndexOf("! "), slice.lastIndexOf("? "));
+    const cut = boundary > HARD_CAP_CHARS * 0.4 ? boundary + 1 : slice.lastIndexOf(" ");
+    const safeCut = cut > 0 ? cut : HARD_CAP_CHARS;
+    segments.push(remaining.slice(0, safeCut).trim());
+    remaining = remaining.slice(safeCut).trim();
+  }
+
+  if (remaining.length <= HARD_CAP_CHARS) {
+    segments.push(remaining);
+  } else {
+    // Used up the segment budget and there's still more — trim the last one cleanly
+    // rather than let the message count grow without bound.
+    const slice = remaining.slice(0, HARD_CAP_CHARS);
+    const lastSpace = slice.lastIndexOf(" ");
+    segments.push(`${(lastSpace > 0 ? slice.slice(0, lastSpace) : slice).trim()}…`);
+  }
+
+  return segments.filter(Boolean);
 }
 
 function classifySentimentFallback(text: string): "POSITIVE" | "NEUTRAL" | "NEGATIVE" {
@@ -271,7 +309,7 @@ function classifySentimentFallback(text: string): "POSITIVE" | "NEUTRAL" | "NEGA
  * fills up with conversations that only needed a retry.
  */
 const FALLBACK_RESULT: OrchestratorResult = {
-  replyText: "Sorry — that one got away from me. Could you say it again, or put it a slightly different way?",
+  replySegments: ["Sorry — that one got away from me. Could you say it again, or put it a slightly different way?"],
   escalate: false,
   sentiment: "NEUTRAL",
   sessionNote: "orchestrator produced no usable reply; asked student to rephrase",
@@ -431,8 +469,9 @@ export async function generateCounsellingReply(
       }
       const sentiment = args.sentiment?.toUpperCase();
       const parsedSentiment = sentiment === "POSITIVE" || sentiment === "NEUTRAL" || sentiment === "NEGATIVE" ? sentiment : undefined;
+      const segments = splitReply(args.reply ?? "");
       return {
-        replyText: trimReply(args.reply ?? "") || FALLBACK_RESULT.replyText,
+        replySegments: segments.length ? segments : FALLBACK_RESULT.replySegments,
         escalate: !!args.escalate,
         escalateReason: args.escalateReason,
         sentiment: parsedSentiment ?? classifySentimentFallback(studentMessage),
@@ -447,7 +486,7 @@ export async function generateCounsellingReply(
       if (text) {
         console.log("[orchestrator] model replied without calling submit_reply — using response.text and sentiment fallback");
         return {
-          replyText: trimReply(text),
+          replySegments: splitReply(text),
           escalate: false,
           sentiment: classifySentimentFallback(studentMessage),
           sessionNote: studentMessage.slice(0, 100),

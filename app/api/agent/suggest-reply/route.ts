@@ -27,5 +27,7 @@ export async function POST(req: NextRequest) {
   }
 
   const result = await generateCounsellingReply(contact, lastInbound.body, false);
-  return NextResponse.json({ suggestion: result.replyText });
+  // The agent edits this in one textarea before sending, so segments (only ever split for
+  // WhatsApp's per-message length) are joined back into one draft here.
+  return NextResponse.json({ suggestion: result.replySegments.join("\n\n") });
 }

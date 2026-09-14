@@ -1,7 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { getSession, canViewFinancials } from "@/lib/auth";
-import SalesBriefCard, { type BriefFact } from "@/components/SalesBriefCard";
+import SalesBriefCard from "@/components/SalesBriefCard";
 import { buildSalesBrief } from "@/lib/salesBrief";
+import { buildLeadFacts } from "@/lib/leadFacts";
 import { computeCohort } from "@/lib/segmentation";
 import { bandToTemperature } from "@/lib/propensity";
 import { computeServiceWindow } from "@/lib/messaging/sendGovernor";
@@ -10,6 +11,7 @@ import { getAttributionSource } from "@/lib/attribution";
 import LiveTranscript from "./LiveTranscript";
 import LeadTimeline from "@/components/LeadTimeline";
 import DispositionPanel from "@/components/DispositionPanel";
+import ProfileFieldsPanel from "@/components/ProfileFieldsPanel";
 import DeleteLeadButton from "@/components/DeleteLeadButton";
 
 export default async function TranscriptDetailPage({ params }: { params: Promise<{ contactId: string }> }) {
@@ -35,20 +37,7 @@ export default async function TranscriptDetailPage({ params }: { params: Promise
   const brief = buildSalesBrief(contact, sessions, openHandover, handoffTokens);
   const cohort = computeCohort(contact);
   const isAdmin = session?.role === "ADMIN";
-
-  const facts: BriefFact[] = [
-    { label: "Journey", value: contact.journey ?? "Undecided" },
-    { label: "Stage", value: contact.stage.replaceAll("_", " ").toLowerCase() },
-    { label: "Window", value: inWindow ? "Open" : "Closed" },
-    { label: "Attribution", value: contact.attributionTier ?? "—" },
-    { label: "Source", value: source.summary },
-    { label: "Sessions", value: String(contact.interactionSessionCount) },
-    { label: "Qualified", value: contact.isQualifiedLead ? "Yes" : "No" },
-    ...(showFinancials
-      ? [{ label: "Course", value: contact.destinationCountry ?? contact.courseCategory ?? "—" }]
-      : []),
-    ...(contact.lastSentiment ? [{ label: "Sentiment", value: contact.lastSentiment.toLowerCase() }] : []),
-  ];
+  const facts = buildLeadFacts(contact, { inWindow, showFinancials, sourceSummary: source.summary });
 
   return (
     <div className="space-y-5">
@@ -87,12 +76,32 @@ export default async function TranscriptDetailPage({ params }: { params: Promise
             }}
           />
         </div>
-        <div>
+        <div className="space-y-4">
           {session && (
             <DispositionPanel
               contactId={contact.id}
               currentDisposition={contact.disposition}
               initialNotes={notes.map((n) => ({ id: n.id, body: n.body, createdAt: n.createdAt.toISOString(), agentName: n.author.displayName }))}
+            />
+          )}
+          {session && (
+            <ProfileFieldsPanel
+              contactId={contact.id}
+              initial={{
+                confirmedName: contact.confirmedName ?? "",
+                journey: contact.journey ?? "",
+                destinationCountry: contact.destinationCountry ?? "",
+                degreeLevel: contact.degreeLevel ?? "",
+                intendedIntake: contact.intendedIntake ?? "",
+                currentYearOfStudy: contact.currentYearOfStudy ?? "",
+                testStatus: contact.testStatus ?? "",
+                admissionStatus: contact.admissionStatus ?? "",
+                courseCategory: contact.courseCategory ?? "",
+                targetInstitution: contact.targetInstitution ?? "",
+                intakeOrBatch: contact.intakeOrBatch ?? "",
+                employmentStatus: contact.employmentStatus ?? "",
+                entranceStatus: contact.entranceStatus ?? "",
+              }}
             />
           )}
         </div>

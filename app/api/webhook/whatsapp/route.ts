@@ -55,7 +55,12 @@ async function processWebhookPayload(payload: unknown): Promise<void> {
     const { contact } = await findOrCreateContact(msg.from, msg.profileName, clickToken);
 
     const kind = msg.type === "interactive" || msg.type === "button" ? (msg.interactiveReplyId ? "BUTTON" : "TEXT") : "TEXT";
-    const body = msg.type === "text" ? msg.text : msg.interactiveReplyTitle ?? msg.text;
+    // The QR prefill hides its click token behind a long run of spaces (see
+    // app/api/redirect/[code]/route.ts) — collapse that back down for storage/display now
+    // that the token's already been extracted above, so the transcript doesn't show a wall
+    // of blank space as the student's first message.
+    const rawBody = msg.type === "text" ? msg.text : msg.interactiveReplyTitle ?? msg.text;
+    const body = rawBody?.replace(/[ \t]{2,}/g, " ").trim();
 
     await prisma.message.create({
       data: {

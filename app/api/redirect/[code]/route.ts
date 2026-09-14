@@ -33,6 +33,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ code
   }
 
   const waNumber = process.env.META_PHONE_NUMBER_DISPLAY ?? "";
-  const prefill = encodeURIComponent(resolution.clickToken);
+  // The click token still has to ride along in the prefilled text (it's how the webhook
+  // attributes this exact scan — FR-A03/A07), but a bare random string sitting in the
+  // compose box looks broken and invites editing. A natural opener + a long run of
+  // trailing spaces pushes the token off the visible line, so the student just sees
+  // "Tap send to start" and taps send, while the token still travels in the message body.
+  const prefill = encodeURIComponent(`Hi! Tap send to start our conversation 👋${" ".repeat(60)}${resolution.clickToken}`);
   return NextResponse.redirect(`https://wa.me/${waNumber}?text=${prefill}`, { status: 302 });
 }

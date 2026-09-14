@@ -2,15 +2,21 @@ import { prisma } from "@/lib/prisma";
 
 /** Module B — consent, identity and age gate (BRD FR-B04..FR-B08, PRD Layer 2). */
 
-export const CONSENT_NOTICE_VERSION = "v1.0-2026-09"; // CR-05 — Legal-approved, version-controlled.
+export const CONSENT_NOTICE_VERSION = "v1.1-2026-09"; // CR-05 — Legal-approved, version-controlled. Bumped for the warmer v1.1 wording below (same disclosed substance: AI, not human; Avanse Financial Services, RBI-registered NBFC; purpose + data-sharing ask).
+
+// FR-B04 warmup line, sent as its own message just before the disclosure below — pure
+// rapport-building, discloses nothing new, never skips or delays the actual disclosure.
+export const WARM_OPENER_TEXT = "Hey! 👋 Thinking about funding your next big move — college, a course, maybe a move abroad?";
 
 export const IDENTITY_DISCLOSURE_TEXT =
-  "Hi! I'm an automated assistant from Avanse Financial Services, an RBI-registered NBFC — " +
-  "not a human counsellor, and nothing here is independent financial advice.";
+  "Quick heads-up before we dive in: I'm Aanya, an AI counsellor (not a human) built by Avanse " +
+  "Financial Services, an RBI-registered NBFC. Think of me as your fastest first stop — I can't " +
+  "give independent financial advice, but I can get you real answers fast and line up a human " +
+  "counsellor the moment you need one.";
 
 export const PURPOSE_NOTICE_TEXT =
-  "I'd like to help you explore education loan options. To do that I'll ask a few questions " +
-  "and may pass your details to our sales team. Is that okay?";
+  "I'll ask a few quick questions to understand what you're looking for, and — with your OK — " +
+  "share your details with our team so they can follow up faster. Cool if we get started?";
 
 /** FR-B06/DR-05 — append-only. No update or delete path exists anywhere else in the codebase. */
 export async function recordConsent(

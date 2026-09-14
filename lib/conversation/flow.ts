@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import type { Contact, Journey } from "@prisma/client";
 import { sendOutboundMessage } from "@/lib/messaging/sendGovernor";
-import { recordConsent, recordOptOut, recordAgeGate, isOptOutMessage, IDENTITY_DISCLOSURE_TEXT, PURPOSE_NOTICE_TEXT } from "@/lib/consent";
+import { recordConsent, recordOptOut, recordAgeGate, isOptOutMessage, IDENTITY_DISCLOSURE_TEXT, PURPOSE_NOTICE_TEXT, WARM_OPENER_TEXT } from "@/lib/consent";
 import { stampConversationalCollege } from "@/lib/attribution";
 import { generateCounsellingReply } from "@/lib/conversation/orchestrator";
 import { nextPendingStep, resolveProfilingReply, stepsForJourney } from "@/lib/conversation/profilingSteps";
@@ -251,6 +251,10 @@ async function handleInboundMessageInStage(
 
   switch (contact.stage) {
     case "NEW": {
+      // A short, warm rapport-building line lands first — the disclosure/consent prompt
+      // right after it is the student's actual first impression of "Aanya", not a cold
+      // legal notice cold-opening the chat.
+      await send(contact, { kind: "text", body: WARM_OPENER_TEXT });
       await send(contact, consentAndDisclosurePayload());
       await setStage(contact.id, "AWAITING_CONSENT");
       return;
@@ -296,6 +300,14 @@ async function handleInboundMessageInStage(
         const updated = await prisma.contact.update({ where: { id: contact.id }, data: { journey: chosen } });
         const step = nextPendingStep(chosen, updated);
         if (step) {
+          // A one-line reaction before the first pointed question — the difference between
+          // an interrogation and a conversation that happens to ask questions.
+          await send(
+            updated,
+            chosen === "INTERNATIONAL"
+              ? { kind: "text", body: "Studying abroad — exciting 🌍 Avanse funds students across a wide range of countries and courses, so let's find your fit." }
+              : { kind: "text", body: "Nice, plenty of strong options right here in India 🇮🇳 Let's zero in on what fits you best." }
+          );
           await send(updated, step.prompt());
           await setStage(contact.id, "PROFILING", { pendingProfilingField: step.field as string });
         }

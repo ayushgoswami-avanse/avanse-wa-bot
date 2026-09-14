@@ -66,7 +66,8 @@ const PROFILE_TOOL: FunctionDeclaration = {
     "Quietly record something you have genuinely learned about this student from the conversation. " +
     "Call this whenever a real detail surfaces — never ask a question just to fill a field here. " +
     "Only pass fields you actually learned or that changed; omit everything else. The student " +
-    "never sees this, and it does not replace your reply — you still call submit_reply.",
+    "never sees this, and it does not replace your reply. Call it in the SAME turn as " +
+    "submit_reply — they go together; do not spend a separate round trip on it.",
   parameters: {
     type: Type.OBJECT,
     properties: {
@@ -246,10 +247,15 @@ function classifySentimentFallback(text: string): "POSITIVE" | "NEUTRAL" | "NEGA
   return "NEUTRAL";
 }
 
+/** Deliberately does NOT escalate. Escalation is a counselling decision, not an error
+ * handler — routing every transient model hiccup to a human is how a scarce human queue
+ * fills up with conversations that only needed a retry.
+ */
 const FALLBACK_RESULT: OrchestratorResult = {
-  replyText: "Sorry, I'm having trouble responding right now. Let me connect you with a counsellor who can help.",
-  escalate: true,
-  escalateReason: "orchestrator_error",
+  replyText: "Sorry — that one got away from me. Could you say it again, or put it a slightly different way?",
+  escalate: false,
+  sentiment: "NEUTRAL",
+  sessionNote: "orchestrator produced no usable reply; asked student to rephrase",
 };
 
 const PROFILE_STRING_FIELDS = [
@@ -413,15 +419,26 @@ export async function generateCounsellingReply(
     if (functionCalls.length === 0) {
       // Model finished without calling submit_reply at all — use whatever text it
       // produced, and fall back to keyword sentiment since there's no tool args here.
-      console.log("[orchestrator] model replied without calling submit_reply — using response.text and sentiment fallback");
       const text = response.text;
       if (text) {
+        console.log("[orchestrator] model replied without calling submit_reply — using response.text and sentiment fallback");
         return {
           replyText: text.slice(0, HARD_CAP_CHARS),
           escalate: false,
           sentiment: classifySentimentFallback(studentMessage),
           sessionNote: studentMessage.slice(0, 100),
         };
+      }
+
+      // Neither a tool call nor text — an empty turn, which Gemini does occasionally after a
+      // tool response. Nudge once for the reply it owes us instead of giving up on the student.
+      if (turn < MAX_TURNS - 1) {
+        console.log("[orchestrator] empty model turn — nudging for submit_reply");
+        contents.push({
+          role: "user",
+          parts: [{ text: "Continue. Call submit_reply now with your message for the student." }],
+        });
+        continue;
       }
       return FALLBACK_RESULT;
     }

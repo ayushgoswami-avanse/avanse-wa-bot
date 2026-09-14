@@ -1,7 +1,7 @@
 import type { TimelineEvent } from "@/lib/timeline";
 
 function formatAt(d: Date): string {
-  return new Date(d).toLocaleString(undefined, { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" });
+  return new Date(d).toLocaleString(undefined, { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
 }
 
 const DOT_STYLE: Record<TimelineEvent["kind"], string> = {
@@ -29,120 +29,111 @@ function EventCard({ event }: { event: TimelineEvent }) {
   switch (event.kind) {
     case "first_contact":
       return (
-        <div>
-          <div className="text-sm font-semibold text-slate-900">First contact</div>
-          <div className="text-xs text-slate-500 mt-0.5">
-            {event.attributionTier ? `Attribution: ${event.attributionTier.replaceAll("_", " ").toLowerCase()}` : "No attribution captured"}
-            {event.source ? ` · Source: ${event.source.replaceAll("_", " ")}` : ""}
-            {event.college ? ` · College: ${event.college}` : ""}
-          </div>
-        </div>
+        <>
+          <div className="text-xs font-semibold text-slate-900">First contact</div>
+          <div className="text-[11px] text-slate-500 mt-1 leading-snug">{event.sourceSummary}</div>
+          {event.attributionTier && (
+            <span className="inline-block mt-1.5 px-1.5 py-0.5 rounded bg-brand-blue-50 text-brand-blue text-[10px] font-medium">
+              {event.attributionTier.replaceAll("_", " ").toLowerCase()}
+            </span>
+          )}
+        </>
       );
 
     case "session": {
       const s = event.session;
+      const shown = event.changed.slice(0, 4);
+      const more = event.changed.length - shown.length;
       return (
-        <div>
-          <div className="flex items-center justify-between gap-2">
-            <div className="text-sm font-semibold text-slate-900">
-              Interaction session · {s.messageCount} message{s.messageCount === 1 ? "" : "s"}
+        <>
+          <div className="flex items-center justify-between gap-1.5">
+            <div className="text-xs font-semibold text-slate-900">
+              {s.messageCount} msg{s.messageCount === 1 ? "" : "s"}
             </div>
             {s.sentiment && (
               <span
-                className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${
+                className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium shrink-0 ${
                   s.sentiment === "POSITIVE"
-                    ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200"
+                    ? "bg-emerald-50 text-emerald-700"
                     : s.sentiment === "NEGATIVE"
-                    ? "bg-red-50 text-red-700 ring-1 ring-red-200"
-                    : "bg-slate-100 text-slate-600 ring-1 ring-slate-200"
+                    ? "bg-red-50 text-red-700"
+                    : "bg-slate-100 text-slate-600"
                 }`}
               >
                 {s.sentiment.toLowerCase()}
               </span>
             )}
           </div>
-          {s.summary && <p className="text-xs text-slate-600 mt-1.5 whitespace-pre-wrap">{s.summary}</p>}
-
-          {event.changed.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 mt-2">
-              {event.changed.map((c) => (
-                <span key={c.key} className="px-2 py-0.5 rounded-full bg-brand-teal-50 text-brand-teal-dark text-[11px] font-medium">
-                  {c.label}: {c.from === "—" ? c.to : `${c.from} → ${c.to}`}
+          {s.summary && <p className="text-[11px] text-slate-600 mt-1 line-clamp-2">{s.summary.split("\n").pop()?.replace(/^- /, "")}</p>}
+          {shown.length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-1.5">
+              {shown.map((c) => (
+                <span key={c.key} className="px-1.5 py-0.5 rounded bg-brand-teal-50 text-brand-teal-dark text-[10px] font-medium">
+                  {c.label}: {c.to}
                 </span>
               ))}
+              {more > 0 && <span className="text-[10px] text-slate-400 self-center">+{more} more</span>}
             </div>
           )}
-
-          {Object.keys(event.snapshot).length > 0 && (
-            <details className="mt-2 group">
-              <summary className="text-[11px] text-slate-500 cursor-pointer select-none hover:text-brand-teal-dark w-fit">
-                Full snapshot as of this session
-              </summary>
-              <div className="mt-1.5 grid grid-cols-2 gap-x-4 gap-y-1 text-[11px] bg-slate-50 rounded-lg p-2.5">
-                {Object.entries(event.snapshot).map(([k, v]) => (
-                  <div key={k} className="flex justify-between gap-2">
-                    <span className="text-slate-500">{k}</span>
-                    <span className="text-slate-800 font-medium text-right">{String(v)}</span>
-                  </div>
-                ))}
-              </div>
-            </details>
-          )}
-        </div>
+        </>
       );
     }
 
     case "disposition":
       return (
-        <div>
-          <div className="text-sm font-semibold text-slate-900">
-            Disposition set: <span className="text-violet-700">{DISPOSITION_LABEL[event.disposition] ?? event.disposition}</span>
-          </div>
-          <div className="text-xs text-slate-500 mt-0.5">by {event.agentName}</div>
-          {event.note && <p className="text-xs text-slate-600 mt-1 whitespace-pre-wrap">{event.note}</p>}
-        </div>
+        <>
+          <div className="text-xs font-semibold text-violet-700">{DISPOSITION_LABEL[event.disposition] ?? event.disposition}</div>
+          <div className="text-[10.5px] text-slate-500 mt-1">by {event.agentName}</div>
+          {event.note && <p className="text-[11px] text-slate-600 mt-1 line-clamp-2">{event.note}</p>}
+        </>
       );
 
     case "note":
       return (
-        <div>
-          <div className="text-sm font-semibold text-slate-900">Note from {event.agentName}</div>
-          <p className="text-xs text-slate-600 mt-1 whitespace-pre-wrap">{event.body}</p>
-        </div>
+        <>
+          <div className="text-xs font-semibold text-slate-900">Note · {event.agentName}</div>
+          <p className="text-[11px] text-slate-600 mt-1 line-clamp-3">{event.body}</p>
+        </>
       );
 
     case "handover_opened":
       return (
-        <div>
-          <div className="text-sm font-semibold text-slate-900">Escalated to a human</div>
-          <div className="text-xs text-slate-500 mt-0.5">{event.reason.replaceAll("_", " ").toLowerCase()}</div>
-        </div>
+        <>
+          <div className="text-xs font-semibold text-red-700">Escalated to human</div>
+          <div className="text-[10.5px] text-slate-500 mt-1">{event.reason.replaceAll("_", " ").toLowerCase()}</div>
+        </>
       );
 
     case "handover_resolved":
       return (
-        <div>
-          <div className="text-sm font-semibold text-slate-900">Handover resolved · returned to AI</div>
-          <div className="text-xs text-slate-500 mt-0.5">{event.reason.replaceAll("_", " ").toLowerCase()}</div>
-        </div>
+        <>
+          <div className="text-xs font-semibold text-emerald-700">Handover resolved</div>
+          <div className="text-[10.5px] text-slate-500 mt-1">back to AI · {event.reason.replaceAll("_", " ").toLowerCase()}</div>
+        </>
       );
   }
 }
 
+/** Horizontal, scrollable timeline strip — one card per acquisition/session/disposition/note/
+ * handover event, oldest to newest left-to-right, each surfacing the key parameters that
+ * changed at that moment so a telecaller can skim the whole journey without opening anything.
+ */
 export default function LeadTimeline({ events }: { events: TimelineEvent[] }) {
   if (events.length === 0) {
     return <p className="text-sm text-slate-500">No timeline events yet.</p>;
   }
 
   return (
-    <div className="relative pl-6">
-      <div className="absolute left-[7px] top-1.5 bottom-1.5 w-px bg-slate-200" />
-      <div className="space-y-5">
+    <div className="relative">
+      <div className="absolute left-0 right-0 top-[15px] h-px bg-slate-200" />
+      <div className="flex gap-3 overflow-x-auto brand-scroll pb-2 pt-0.5 snap-x snap-proximity">
         {events.map((event, i) => (
-          <div key={i} className="relative animate-fade-in" style={{ animationDelay: `${Math.min(i, 12) * 30}ms` }}>
-            <span className={`absolute -left-6 top-1 w-3.5 h-3.5 rounded-full ring-4 ring-white ${DOT_STYLE[event.kind]}`} />
-            <div className="text-[11px] text-slate-400 mb-1">{formatAt(event.at)}</div>
-            <div className="bg-white rounded-xl border border-slate-200 p-3.5 shadow-sm">
+          <div key={i} className="snap-start shrink-0 w-[200px] animate-fade-in" style={{ animationDelay: `${Math.min(i, 14) * 25}ms` }}>
+            <div className="flex items-center gap-1.5 mb-1.5 relative z-10">
+              <span className={`w-2.5 h-2.5 rounded-full ring-[3px] ring-white ${DOT_STYLE[event.kind]}`} />
+              <span className="text-[10px] text-slate-400 whitespace-nowrap">{formatAt(event.at)}</span>
+            </div>
+            <div className="bg-white rounded-xl border border-slate-200 p-3 shadow-sm h-[104px] overflow-hidden">
               <EventCard event={event} />
             </div>
           </div>

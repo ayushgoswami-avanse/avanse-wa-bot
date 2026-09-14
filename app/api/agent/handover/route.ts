@@ -18,8 +18,9 @@ export async function POST(req: NextRequest) {
     await prisma.handover.update({ where: { id: handover.id }, data: { status: "CLAIMED", claimedById: session.sub } });
   } else if (action === "resolve") {
     await prisma.handover.update({ where: { id: handover.id }, data: { status: "RESOLVED", resolvedAt: new Date() } });
-    // Return the thread to the AI counsellor.
-    await prisma.contact.update({ where: { id: contactId }, data: { stage: "COUNSELLING" } });
+    // Return the thread to the AI counsellor with a clean slate — otherwise a resolved
+    // handover could immediately re-trigger the sustained-negative-sentiment counter.
+    await prisma.contact.update({ where: { id: contactId }, data: { stage: "COUNSELLING", consecutiveNegativeTurns: 0 } });
   } else {
     return NextResponse.json({ error: "invalid action" }, { status: 400 });
   }

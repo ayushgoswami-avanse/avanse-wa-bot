@@ -6,6 +6,7 @@ import { computeCohort } from "@/lib/segmentation";
 import { bandToTemperature } from "@/lib/propensity";
 import { computeServiceWindow } from "@/lib/messaging/sendGovernor";
 import { buildLeadTimeline } from "@/lib/timeline";
+import { getAttributionSource } from "@/lib/attribution";
 import LiveTranscript from "./LiveTranscript";
 import LeadTimeline from "@/components/LeadTimeline";
 import DispositionPanel from "@/components/DispositionPanel";
@@ -23,6 +24,7 @@ export default async function TranscriptDetailPage({ params }: { params: Promise
   const { inWindow } = await computeServiceWindow(contactId);
   const notes = await prisma.agentNote.findMany({ where: { contactId }, orderBy: { createdAt: "desc" }, include: { author: true } });
   const { events } = await buildLeadTimeline(contact);
+  const source = await getAttributionSource(contact);
 
   // FR-H05 — every transcript view is logged with user, contact, timestamp.
   if (session) {
@@ -35,9 +37,11 @@ export default async function TranscriptDetailPage({ params }: { params: Promise
   const isAdmin = session?.role === "ADMIN";
 
   const facts: BriefFact[] = [
+    { label: "Journey", value: contact.journey ?? "Undecided" },
     { label: "Stage", value: contact.stage.replaceAll("_", " ").toLowerCase() },
     { label: "Window", value: inWindow ? "Open" : "Closed" },
     { label: "Attribution", value: contact.attributionTier ?? "—" },
+    { label: "Source", value: source.summary },
     { label: "Sessions", value: String(contact.interactionSessionCount) },
     { label: "Qualified", value: contact.isQualifiedLead ? "Yes" : "No" },
     ...(showFinancials
@@ -48,6 +52,11 @@ export default async function TranscriptDetailPage({ params }: { params: Promise
 
   return (
     <div className="space-y-5">
+      <div>
+        <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Lead journey</h2>
+        <LeadTimeline events={events} />
+      </div>
+
       <div className="flex items-start gap-3">
         <div className="flex-1 min-w-0">
           <SalesBriefCard brief={brief} waId={contact.waId} temperature={bandToTemperature(contact.propensityBand)} facts={facts} segmentTags={cohort.segmentTags} />
@@ -86,13 +95,6 @@ export default async function TranscriptDetailPage({ params }: { params: Promise
               initialNotes={notes.map((n) => ({ id: n.id, body: n.body, createdAt: n.createdAt.toISOString(), agentName: n.author.displayName }))}
             />
           )}
-        </div>
-      </div>
-
-      <div className="animate-slide-up stagger-2">
-        <h2 className="text-sm font-semibold text-slate-700 mb-2.5">Lead journey timeline</h2>
-        <div className="max-w-2xl max-h-[480px] overflow-y-auto brand-scroll pr-2">
-          <LeadTimeline events={events} />
         </div>
       </div>
     </div>

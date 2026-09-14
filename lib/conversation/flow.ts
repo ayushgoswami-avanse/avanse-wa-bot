@@ -30,6 +30,10 @@ export type InboundTurn = {
 };
 
 const HUMAN_REQUEST_KEYWORDS = ["human", "agent", "counsellor", "counselor", "talk to someone", "real person"];
+// Sustained, not a single bad turn: this many consecutive negative-sentiment turns despite
+// the AI's own attempts to help is what actually triggers a human handover — not the LLM's
+// own say-so, which proved too eager on a single frustrated message (see orchestrator.ts).
+const NEGATIVE_SENTIMENT_ESCALATION_THRESHOLD = 3;
 const ELIGIBILITY_KEYWORDS = ["eligib", "how much can i get", "how much loan", "loan amount", "qualify for"];
 const HANDOFF_KEYWORDS = ["apply now", "continue application", "proceed with application", "start application", "apply for the loan"];
 const RESOURCE_KEYWORDS = ["resource", "guide", "checklist", "help me decide", "documents needed"];
@@ -38,6 +42,17 @@ const ALUMNI_KEYWORDS = ["alumni", "talk to a student", "connect me with someone
 function containsAny(text: string, keywords: string[]): boolean {
   const lower = text.toLowerCase();
   return keywords.some((k) => lower.includes(k));
+}
+
+/** The LLM's own escalate flag now fires rarely and for varied reasons (see orchestrator.ts) —
+ * this buckets its free-text reason into the right HandoverReason for the agent console,
+ * rather than blindly labelling every AI-decided escalation "negative sentiment".
+ */
+function classifyEscalationReason(reasonText?: string): "EXPLICIT_REQUEST" | "COMPLEX_OR_HIGH_VALUE" | "COUNSELLOR_REFUSAL" {
+  const t = (reasonText ?? "").toLowerCase();
+  if (/human|person|agent|talk to someone|speak (with|to)/.test(t)) return "EXPLICIT_REQUEST";
+  if (/safety|self.?harm|complaint|legal|regulat/.test(t)) return "COUNSELLOR_REFUSAL";
+  return "COMPLEX_OR_HIGH_VALUE";
 }
 
 async function send(contact: Contact, payload: OutboundPayload) {
@@ -186,12 +201,15 @@ async function runCounselling(
   text: string,
   sessionId: string,
   isNewSession: boolean
-): Promise<{ escalate: boolean; escalateReason?: string }> {
+): Promise<{ escalate: boolean; escalateReason?: string; consecutiveNegativeTurns: number }> {
   const result = await generateCounsellingReply(contact, text, isNewSession);
   await send(contact, { kind: "text", body: result.replyText });
-  await recordTurnInsights(contact.id, sessionId, { sentiment: result.sentiment, sessionNote: result.sessionNote });
+  const { consecutiveNegativeTurns } = await recordTurnInsights(contact.id, sessionId, {
+    sentiment: result.sentiment,
+    sessionNote: result.sessionNote,
+  });
   await recomputeAndPersistPropensity(contact.id);
-  return { escalate: result.escalate, escalateReason: result.escalateReason };
+  return { escalate: result.escalate, escalateReason: result.escalateReason, consecutiveNegativeTurns };
 }
 
 async function escalateToHuman(contact: Contact, reason: "EXPLICIT_REQUEST" | "NEGATIVE_SENTIMENT" | "COMPLEX_OR_HIGH_VALUE" | "COUNSELLOR_REFUSAL") {
@@ -327,7 +345,7 @@ async function handleInboundMessageInStage(
         // FR-C03 — answer the student's own question first, THEN re-ask the same pending field.
         const result = await runCounselling(contact, text, sessionId, isReturningSession);
         if (result.escalate) {
-          await escalateToHuman(contact, "COUNSELLOR_REFUSAL");
+          await escalateToHuman(contact, classifyEscalationReason(result.escalateReason));
           return;
         }
         if (pendingStep) await send(contact, pendingStep.prompt());
@@ -453,6 +471,11 @@ async function handleInboundMessageInStage(
 
       const result = await runCounselling(contact, text, sessionId, isReturningSession);
       if (result.escalate) {
+        await escalateToHuman(contact, classifyEscalationReason(result.escalateReason));
+        return;
+      }
+      if (result.consecutiveNegativeTurns >= NEGATIVE_SENTIMENT_ESCALATION_THRESHOLD) {
+        await prisma.contact.update({ where: { id: contact.id }, data: { consecutiveNegativeTurns: 0 } });
         await escalateToHuman(contact, "NEGATIVE_SENTIMENT");
       }
       return;

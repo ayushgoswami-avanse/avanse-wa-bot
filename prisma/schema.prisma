@@ -205,6 +205,7 @@ model Contact {
 
   profileSummary        String?  @db.Text // maintained rolling summary injected into model context
   lastSentiment         Sentiment? // most recently classified student sentiment, any stage
+  consecutiveNegativeTurns Int @default(0) // resets on any non-negative turn; deterministic escalation trigger, not the AI's own call
   interactionSessionCount Int    @default(0) // denormalised count of InteractionSession rows
 
   optedOutMarketing     Boolean  @default(false)

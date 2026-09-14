@@ -107,16 +107,27 @@ export async function touchSession(contact: Contact): Promise<{ sessionId: strin
 /** Called after an AI turn: records the model's own sentiment read and one-line note
  * against the current session, and rolls a short note into the contact's maintained
  * profile summary (PRD §5.3 — "last time you were looking at Fall 2027").
+ *
+ * Also tracks consecutiveNegativeTurns — a deterministic counter, not the model's own
+ * judgment — since letting the LLM decide "sustained negative sentiment" on its own
+ * escalated far too eagerly on a single frustrated message. The caller escalates only
+ * once this crosses a real threshold (see NEGATIVE_SENTIMENT_ESCALATION_THRESHOLD in
+ * lib/conversation/flow.ts).
  */
 export async function recordTurnInsights(
   contactId: string,
   sessionId: string,
   insights: { sentiment?: Sentiment; sessionNote?: string }
-): Promise<void> {
+): Promise<{ consecutiveNegativeTurns: number }> {
   const contact = await prisma.contact.findUniqueOrThrow({ where: { id: contactId } });
+  let consecutiveNegativeTurns = contact.consecutiveNegativeTurns;
 
   if (insights.sentiment) {
-    await prisma.contact.update({ where: { id: contactId }, data: { lastSentiment: insights.sentiment } });
+    consecutiveNegativeTurns = insights.sentiment === "NEGATIVE" ? consecutiveNegativeTurns + 1 : 0;
+    await prisma.contact.update({
+      where: { id: contactId },
+      data: { lastSentiment: insights.sentiment, consecutiveNegativeTurns },
+    });
   }
 
   if (insights.sessionNote) {
@@ -143,6 +154,8 @@ export async function recordTurnInsights(
       data: { profileSummary: nextProfileSummary.slice(-800) },
     });
   }
+
+  return { consecutiveNegativeTurns };
 }
 
 export async function closeSessionSnapshot(contact: Contact, sessionId: string): Promise<void> {

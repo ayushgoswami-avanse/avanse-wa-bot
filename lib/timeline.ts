@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import type { Contact, InteractionSession, DispositionEvent, AgentNote, Handover, AgentUser } from "@prisma/client";
+import { getAttributionSource } from "@/lib/attribution";
 
 const FIELD_LABELS: Record<string, string> = {
   journey: "Journey",
@@ -29,7 +30,7 @@ const FIELD_LABELS: Record<string, string> = {
 export type SnapshotDiff = { key: string; label: string; from: string; to: string };
 
 export type TimelineEvent =
-  | { kind: "first_contact"; at: Date; attributionTier: string | null; source: string | null; college: string | null }
+  | { kind: "first_contact"; at: Date; attributionTier: string | null; sourceSummary: string; assetCode: string | null }
   | { kind: "session"; at: Date; session: InteractionSession; snapshot: Record<string, unknown>; changed: SnapshotDiff[] }
   | { kind: "disposition"; at: Date; disposition: string; note: string | null; agentName: string }
   | { kind: "note"; at: Date; body: string; agentName: string }
@@ -80,13 +81,14 @@ export async function buildLeadTimeline(
   ]);
 
   const events: TimelineEvent[] = [];
+  const attributionSource = await getAttributionSource(contact);
 
   events.push({
     kind: "first_contact",
     at: contact.createdAt,
     attributionTier: contact.attributionTier,
-    source: contact.attributionMethod,
-    college: contact.collegeNameAttributed,
+    sourceSummary: attributionSource.summary,
+    assetCode: attributionSource.assetCode,
   });
 
   let prevSnapshot: Record<string, unknown> = {};

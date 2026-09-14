@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import type { AttributionTier } from "@prisma/client";
+import type { AttributionTier, Contact } from "@prisma/client";
 import { randomBytes } from "crypto";
 
 /** Module A — acquisition and attribution (BRD FR-A01..FR-A10, PRD Layer 0/1). */
@@ -157,4 +157,48 @@ export function extractClickToken(prefilledText: string | undefined | null): str
   if (!prefilledText) return null;
   const match = TOKEN_PATTERN.exec(prefilledText);
   return match ? match[1] : null;
+}
+
+export type AttributionSource = {
+  /** One-line, human-readable summary for a fact chip or timeline entry, e.g.
+   * "QR poster · VIT Vellore · Canteen board 2" or "Direct / unattributed". */
+  summary: string;
+  channel: string | null;
+  collegeName: string | null;
+  spotLabel: string | null;
+  campaign: string | null;
+  assetCode: string | null;
+};
+
+/** Resolves the actual QR/asset a lead came from (not just the tier/method code) — the
+ * "where did this lead come from" a sales rep or a marketing campaign actually needs, e.g.
+ * which poster/QR/ambassador drove it, not just "HIGH_EXACT · token_exact".
+ */
+export async function getAttributionSource(contact: Pick<Contact, "firstClickRecordId" | "collegeNameAttributed">): Promise<AttributionSource> {
+  if (contact.firstClickRecordId) {
+    const record = await prisma.clickRecord.findUnique({ where: { id: contact.firstClickRecordId }, include: { asset: true } });
+    if (record) {
+      const a = record.asset;
+      const bits = [a.channel, a.collegeName, a.spotLabel ?? a.campaign].filter(Boolean);
+      return {
+        summary: bits.length ? bits.join(" · ") : a.code,
+        channel: a.channel,
+        collegeName: a.collegeName,
+        spotLabel: a.spotLabel,
+        campaign: a.campaign,
+        assetCode: a.code,
+      };
+    }
+  }
+  if (contact.collegeNameAttributed) {
+    return {
+      summary: `Conversational · ${contact.collegeNameAttributed}`,
+      channel: "conversational",
+      collegeName: contact.collegeNameAttributed,
+      spotLabel: null,
+      campaign: null,
+      assetCode: null,
+    };
+  }
+  return { summary: "Direct / unattributed", channel: null, collegeName: null, spotLabel: null, campaign: null, assetCode: null };
 }

@@ -6,6 +6,7 @@ import { buildSalesBrief } from "@/lib/salesBrief";
 import { computeCohort } from "@/lib/segmentation";
 import { bandToTemperature } from "@/lib/propensity";
 import { buildLeadTimeline } from "@/lib/timeline";
+import { getAttributionSource } from "@/lib/attribution";
 import LeadTimeline from "@/components/LeadTimeline";
 import LiveAgentThread from "./LiveAgentThread";
 
@@ -22,6 +23,7 @@ export default async function AgentThreadPage({ params }: { params: Promise<{ co
   const templates = await prisma.messageTemplate.findMany({ where: { metaApprovalState: "approved" } });
   const notes = await prisma.agentNote.findMany({ where: { contactId }, orderBy: { createdAt: "desc" }, include: { author: true } });
   const { events } = await buildLeadTimeline(contact);
+  const source = await getAttributionSource(contact);
 
   if (session) await prisma.transcriptView.create({ data: { contactId, agentId: session.sub } });
   const showFinancials = session ? canViewFinancials(session.role) : false;
@@ -29,9 +31,11 @@ export default async function AgentThreadPage({ params }: { params: Promise<{ co
   const cohort = computeCohort(contact);
 
   const facts: BriefFact[] = [
+    { label: "Journey", value: contact.journey ?? "Undecided" },
     { label: "Stage", value: contact.stage.replaceAll("_", " ").toLowerCase() },
     { label: "Window", value: inWindow ? "Open" : "Closed" },
     { label: "Attribution", value: contact.attributionTier ?? "—" },
+    { label: "Source", value: source.summary },
     { label: "Sessions", value: String(contact.interactionSessionCount) },
     { label: "Qualified", value: contact.isQualifiedLead ? "Yes" : "No" },
     ...(showFinancials
@@ -41,6 +45,11 @@ export default async function AgentThreadPage({ params }: { params: Promise<{ co
 
   return (
     <div className="space-y-5">
+      <div>
+        <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Lead journey</h2>
+        <LeadTimeline events={events} />
+      </div>
+
       <SalesBriefCard brief={brief} waId={contact.waId} temperature={bandToTemperature(contact.propensityBand)} facts={facts} segmentTags={cohort.segmentTags} />
 
       <LiveAgentThread
@@ -62,13 +71,6 @@ export default async function AgentThreadPage({ params }: { params: Promise<{ co
         currentDisposition={contact.disposition}
         initialNotes={notes.map((n) => ({ id: n.id, body: n.body, createdAt: n.createdAt.toISOString(), agentName: n.author.displayName }))}
       />
-
-      <div className="animate-slide-up stagger-3">
-        <h2 className="text-sm font-semibold text-slate-700 mb-2.5">Lead journey timeline</h2>
-        <div className="max-w-2xl max-h-[420px] overflow-y-auto brand-scroll pr-2">
-          <LeadTimeline events={events} />
-        </div>
-      </div>
     </div>
   );
 }

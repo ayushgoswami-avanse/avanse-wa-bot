@@ -43,6 +43,9 @@ async function main() {
     { code: "p07k9", channel: "poster", collegeName: "SRM Chennai", spotLabel: "Library entrance", journeyHint: null },
     { code: "a2m5q", channel: "ambassador", collegeName: "VIT Vellore", spotLabel: null, journeyHint: null, ambassadorId: ambassador.id },
     { code: "e9x3r", channel: "event", collegeName: "Chandigarh University", spotLabel: "Career fair booth", journeyHint: "DOMESTIC" as const },
+    // Fixed, memorable code for the live management-demo QR page at /demo — never printed
+    // anywhere real, purely for showing the QR -> WhatsApp -> AI-counsellor journey live.
+    { code: "demo1", channel: "demo", collegeName: "Management Demo", spotLabel: "Live walkthrough QR", journeyHint: null },
   ];
 
   for (const asset of demoAssets) {

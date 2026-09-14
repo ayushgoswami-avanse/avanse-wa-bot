@@ -37,6 +37,44 @@ export type GroundedAnswer = {
   fromCache: boolean;
 };
 
+const REDIRECT_RESOLVE_TIMEOUT_MS = 2500;
+const MAX_CITATIONS_TO_RESOLVE = 4;
+
+/** Gemini's search grounding returns citation URLs as opaque
+ * vertexaisearch.cloud.google.com redirect links, not the actual source page — pasting
+ * one into a WhatsApp reply looks exactly like a phishing link and defeats the entire
+ * point of citing a source for trust. This follows the redirect server-side once (cached
+ * alongside the answer) and swaps in the real destination URL, so what the student sees
+ * is a genuine, recognizable link — canada.ca, not a 200-character tracking string.
+ * Only the top few citations are resolved, both to bound latency and because the model
+ * only ever cites one or two per reply anyway.
+ */
+async function resolveCitationUrls(citations: { title: string; url: string }[]): Promise<{ title: string; url: string }[]> {
+  // Only the top few are worth resolving — both to bound latency and because the model
+  // only ever cites one or two per reply. The rest stay opaque and simply aren't offered
+  // to the model as citable (see runGroundedSearch), rather than risking a dead link.
+  const toResolve = citations.slice(0, MAX_CITATIONS_TO_RESOLVE);
+
+  const resolved = await Promise.all(
+    toResolve.map(async (c) => {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), REDIRECT_RESOLVE_TIMEOUT_MS);
+      try {
+        const res = await fetch(c.url, { method: "GET", redirect: "follow", signal: controller.signal });
+        // We only need the final URL — drain the body so the connection can close cleanly.
+        await res.body?.cancel().catch(() => {});
+        return { title: c.title, url: res.url || c.url };
+      } catch {
+        return null; // timed out, blocked, or otherwise unresolvable — drop rather than cite a dead/opaque link
+      } finally {
+        clearTimeout(timer);
+      }
+    })
+  );
+
+  return resolved.filter((c): c is { title: string; url: string } => c !== null);
+}
+
 /** FR-D07 — semantic cache. POC simplification: exact-normalized-string cache key rather
  * than embedding similarity, which is enough to demonstrate repeated-question reuse in a
  * short demo. Logged in tech-debt.md. */
@@ -117,10 +155,11 @@ export async function runGroundedSearch(
 
     const text = response.text ?? "I couldn't find a confident live answer for that.";
     const groundingMetadata = response.candidates?.[0]?.groundingMetadata;
-    const citations =
+    const rawCitations =
       groundingMetadata?.groundingChunks
         ?.map((c) => ({ title: c.web?.title ?? c.web?.domain ?? "source", url: c.web?.uri ?? "" }))
         .filter((c) => c.url) ?? [];
+    const citations = await resolveCitationUrls(rawCitations);
 
     const answer: GroundedAnswer = { text, citations, asOf, fromCache: false };
     await setCached(sanitized, answer);

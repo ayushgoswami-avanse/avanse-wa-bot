@@ -2,21 +2,16 @@ import { prisma } from "@/lib/prisma";
 
 /** Module B — consent, identity and age gate (BRD FR-B04..FR-B08, PRD Layer 2). */
 
-export const CONSENT_NOTICE_VERSION = "v1.1-2026-09"; // CR-05 — Legal-approved, version-controlled. Bumped for the warmer v1.1 wording below (same disclosed substance: AI, not human; Avanse Financial Services, RBI-registered NBFC; purpose + data-sharing ask).
+export const CONSENT_NOTICE_VERSION = "v2.0-2026-09"; // CR-05 — version-controlled. v2.0 moves consent from a cold opening gate to the point it actually applies: just before a student's details reach the human sales team.
 
-// FR-B04 warmup line, sent as its own message just before the disclosure below — pure
-// rapport-building, discloses nothing new, never skips or delays the actual disclosure.
-export const WARM_OPENER_TEXT = "Hey! 👋 Thinking about funding your next big move — college, a course, maybe a move abroad?";
-
-export const IDENTITY_DISCLOSURE_TEXT =
-  "Quick heads-up before we dive in: I'm Aanya, an AI counsellor (not a human) built by Avanse " +
-  "Financial Services, an RBI-registered NBFC. Think of me as your fastest first stop — I can't " +
-  "give independent financial advice, but I can get you real answers fast and line up a human " +
-  "counsellor the moment you need one.";
-
-export const PURPOSE_NOTICE_TEXT =
-  "I'll ask a few quick questions to understand what you're looking for, and — with your OK — " +
-  "share your details with our team so they can follow up faster. Cool if we get started?";
+/** FR-B04/B05 — asked once, at the moment it actually means something: the student is
+ * about to be handed to a human counsellor or an eligibility check, which is when their
+ * details leave the conversation. Asking this up front (as v1.x did) gated a career
+ * conversation that never needed it.
+ */
+export const SALES_CONSENT_TEXT =
+  "Before I bring in our team on this — okay if I share what we've discussed with an Avanse " +
+  "counsellor so they can pick up from here instead of starting over?";
 
 /** FR-B06/DR-05 — append-only. No update or delete path exists anywhere else in the codebase. */
 export async function recordConsent(

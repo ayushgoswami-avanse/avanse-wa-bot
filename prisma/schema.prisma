@@ -204,6 +204,7 @@ model Contact {
   propensityBand        PropensityBand?
 
   profileSummary        String?  @db.Text // maintained rolling summary injected into model context
+  psycheNotes           String?  @db.Text // Guru's running read on motivation, anxieties and decision drivers — what a good counsellor remembers about a person, not just their form fields
   lastSentiment         Sentiment? // most recently classified student sentiment, any stage
   consecutiveNegativeTurns Int @default(0) // resets on any non-negative turn; deterministic escalation trigger, not the AI's own call
   interactionSessionCount Int    @default(0) // denormalised count of InteractionSession rows

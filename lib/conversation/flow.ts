@@ -1,13 +1,11 @@
 import { prisma } from "@/lib/prisma";
-import type { Contact, Journey } from "@prisma/client";
+import type { Contact } from "@prisma/client";
 import { sendOutboundMessage } from "@/lib/messaging/sendGovernor";
-import { recordConsent, recordOptOut, recordAgeGate, isOptOutMessage, IDENTITY_DISCLOSURE_TEXT, PURPOSE_NOTICE_TEXT, WARM_OPENER_TEXT } from "@/lib/consent";
-import { stampConversationalCollege } from "@/lib/attribution";
+import { recordConsent, recordOptOut, recordAgeGate, isOptOutMessage, SALES_CONSENT_TEXT } from "@/lib/consent";
 import { generateCounsellingReply } from "@/lib/conversation/orchestrator";
-import { nextPendingStep, resolveProfilingReply, stepsForJourney } from "@/lib/conversation/profilingSteps";
+import { resolveProfilingReply } from "@/lib/conversation/profilingSteps";
 import { isQualifiedLead } from "@/lib/conversation/qualification";
 import { recomputeAndPersistPropensity } from "@/lib/propensity";
-import { retrieveInternationalOutcomes, retrieveDomesticOutcomes, formatOutcomesForPrompt } from "@/lib/conversation/rag";
 import { requestTier1Eligibility, eligibilityDisclaimerText } from "@/lib/eligibility";
 import { mintHandoffToken, syncToProcessioIfGated } from "@/lib/handoff";
 import { touchSession, recordTurnInsights, closeSessionSnapshot } from "@/lib/conversation/sessions";
@@ -16,10 +14,19 @@ import { getConfigBool } from "@/lib/config";
 import type { OutboundPayload } from "@/lib/whatsapp/types";
 import resourcesData from "@/data/resources.json";
 
-/** Layers 2-8 — the deterministic conversation state machine. The AI (orchestrator.ts) is
- * only invoked for free-text turns inside COUNSELLING/PROFILING; every compliance-sensitive
- * layer (consent, age gate, eligibility, handoff) is scripted, per AI-HARNESS.md's
- * "small, reversible steps" and the BRD's insistence that no credit logic lives in the bot.
+/** Layers 2-8 — the thin deterministic shell around the conversation.
+ *
+ * ADR-010 inverts what this file used to do. It was a funnel: consent gate → age gate →
+ * journey fork → a fixed sequence of profiling questions, with the AI allowed to speak only
+ * once the form was filled. That produced exactly the interrogation it looks like on paper.
+ *
+ * Guru now owns the conversation from the first message and captures profile data as a
+ * by-product of counselling (orchestrator.ts's save_student_profile tool). What stays
+ * scripted here is only what must be: opt-out handling, the sequential eligibility capture
+ * (no credit logic in the model), the DIY handoff, and the consent + age gate — which now
+ * attach to the single moment they actually govern, the point where a student's details
+ * would reach a human or an eligibility check, rather than blocking a career conversation
+ * that never needed them.
  */
 
 export type InboundTurn = {
@@ -29,7 +36,21 @@ export type InboundTurn = {
   interactiveReplyTitle?: string;
 };
 
-const HUMAN_REQUEST_KEYWORDS = ["human", "agent", "counsellor", "counselor", "talk to someone", "real person"];
+// Deliberately phrase-level, not single words: Guru now calls itself a counsellor and talks
+// about counsellors constantly, so matching the bare word "counsellor" escalated conversations
+// that were going fine.
+const HUMAN_REQUEST_KEYWORDS = [
+  "talk to a human",
+  "speak to a human",
+  "talk to someone",
+  "speak to someone",
+  "real person",
+  "human agent",
+  "human counsellor",
+  "human counselor",
+  "call me",
+  "connect me to an agent",
+];
 // Sustained, not a single bad turn: this many consecutive negative-sentiment turns despite
 // the AI's own attempts to help is what actually triggers a human handover — not the LLM's
 // own say-so, which proved too eager on a single frustrated message (see orchestrator.ts).
@@ -66,13 +87,22 @@ async function setStage(contactId: string, stage: string, extra: Record<string, 
   return prisma.contact.update({ where: { id: contactId }, data: { stage, ...extra } });
 }
 
-function consentAndDisclosurePayload(): OutboundPayload {
+/** Guru's opening. No consent wall, no age form, no identity notice — a counsellor saying
+ * hello and offering to be useful. Everything compliance-sensitive now attaches to the
+ * moment it actually applies (see ensureConsentAndAgeGate).
+ */
+const GURU_GREETING =
+  "Hey! I'm Guru 👋 I help students figure out the big stuff — where to study, which course " +
+  "actually opens the doors you want, visas, PR pathways, timelines, and how to pay for it " +
+  "when you get there.\n\nWhat's on your mind right now?";
+
+function salesConsentPayload(): OutboundPayload {
   return {
     kind: "buttons",
-    body: `${IDENTITY_DISCLOSURE_TEXT}\n\n${PURPOSE_NOTICE_TEXT}`,
+    body: SALES_CONSENT_TEXT,
     buttons: [
-      { id: "consent_yes", title: "Yes, continue" },
-      { id: "consent_no", title: "No thanks" },
+      { id: "consent_yes", title: "Yes, go ahead" },
+      { id: "consent_no", title: "Not yet" },
     ],
   };
 }
@@ -80,7 +110,7 @@ function consentAndDisclosurePayload(): OutboundPayload {
 function ageGatePayload(): OutboundPayload {
   return {
     kind: "buttons",
-    body: "Quick check: are you 18 or older?",
+    body: "One quick thing before I loop in the team — are you 18 or older?",
     buttons: [
       { id: "age_adult", title: "18 or older" },
       { id: "age_minor", title: "Under 18" },
@@ -88,26 +118,33 @@ function ageGatePayload(): OutboundPayload {
   };
 }
 
-function journeyForkPayload(): OutboundPayload {
-  return {
-    kind: "buttons",
-    body: "Are you looking at studying in India, or abroad?",
-    buttons: [
-      { id: "journey_abroad", title: "Abroad" },
-      { id: "journey_india", title: "In India" },
-      { id: "journey_undecided", title: "Not decided yet" },
-    ],
-  };
-}
+/** FR-B05/B07 — consent and the age gate, asked at the only point they carry meaning: just
+ * before this student's details would reach a human counsellor or an eligibility check.
+ * Returns true when the caller may proceed; otherwise it has already sent the prompt and
+ * parked the contact in the matching stage.
+ */
+async function ensureConsentAndAgeGate(contact: Contact): Promise<boolean> {
+  if (contact.isMinor) {
+    await send(contact, {
+      kind: "text",
+      body: "Since you're under 18, I'll keep helping you with guidance here, but I can't pass your details on or run a funding check just yet. Plenty I can still help you figure out though.",
+    });
+    return false;
+  }
 
-async function sendRagHookTeaser(contact: Contact) {
-  const outcomes =
-    contact.journey === "DOMESTIC"
-      ? retrieveDomesticOutcomes("", contact.collegeNameAttributed)
-      : retrieveInternationalOutcomes("", contact.collegeNameAttributed);
-  if (outcomes.length === 0) return;
-  const formatted = formatOutcomesForPrompt(contact.journey === "DOMESTIC" ? "DOMESTIC" : "INTERNATIONAL", outcomes.slice(0, 1));
-  await send(contact, { kind: "text", body: `While we talk — here's something relevant:\n${formatted}` });
+  if (contact.ageGateStatus === "unknown") {
+    await send(contact, ageGatePayload());
+    await setStage(contact.id, "AWAITING_AGE_GATE");
+    return false;
+  }
+
+  if (!contact.consentGranted) {
+    await send(contact, salesConsentPayload());
+    await setStage(contact.id, "AWAITING_CONSENT");
+    return false;
+  }
+
+  return true;
 }
 
 async function handleQualificationIfNeeded(contact: Contact) {
@@ -131,6 +168,8 @@ async function offerEligibilityOrHandoff(contact: Contact): Promise<void> {
 }
 
 async function startEligibilityFlow(contact: Contact): Promise<void> {
+  if (!(await ensureConsentAndAgeGate(contact))) return;
+
   const enabled = await getConfigBool("FEATURE_TIER1_ELIGIBILITY_ENABLED");
   if (!enabled) {
     await send(contact, {
@@ -145,6 +184,8 @@ async function startEligibilityFlow(contact: Contact): Promise<void> {
 }
 
 async function triggerHandoff(contact: Contact): Promise<void> {
+  if (!(await ensureConsentAndAgeGate(contact))) return;
+
   const { url } = await mintHandoffToken(contact);
   await send(contact, {
     kind: "cta_url",
@@ -208,7 +249,10 @@ async function runCounselling(
     sentiment: result.sentiment,
     sessionNote: result.sessionNote,
   });
-  await recomputeAndPersistPropensity(contact.id);
+  // Profile fields are now captured mid-conversation by the orchestrator's
+  // save_student_profile tool, so qualification has to be re-checked after every turn
+  // rather than only at the end of a scripted profiling sequence.
+  await handleQualificationIfNeeded(contact);
   return { escalate: result.escalate, escalateReason: result.escalateReason, consecutiveNegativeTurns };
 }
 
@@ -251,25 +295,34 @@ async function handleInboundMessageInStage(
 
   switch (contact.stage) {
     case "NEW": {
-      // A short, warm rapport-building line lands first — the disclosure/consent prompt
-      // right after it is the student's actual first impression of "Aanya", not a cold
-      // legal notice cold-opening the chat.
-      await send(contact, { kind: "text", body: WARM_OPENER_TEXT });
-      await send(contact, consentAndDisclosurePayload());
-      await setStage(contact.id, "AWAITING_CONSENT");
+      // Guru just says hello and opens the floor. Profiling now happens inside the
+      // conversation (orchestrator's save_student_profile tool), and consent/age attach
+      // to the handoff moment — so there is nothing to gate the first reply behind.
+      await send(contact, { kind: "text", body: GURU_GREETING });
+      await setStage(contact.id, "COUNSELLING");
       return;
     }
 
     case "AWAITING_CONSENT": {
       if (turn.interactiveReplyId === "consent_yes") {
         await recordConsent(contact.id, "GRANTED", turn.metaMessageId);
-        await send(contact, ageGatePayload());
-        await setStage(contact.id, "AWAITING_AGE_GATE");
+        await setStage(contact.id, "COUNSELLING");
+        const fresh = await prisma.contact.findUniqueOrThrow({ where: { id: contact.id } });
+        await handleQualificationIfNeeded(fresh);
+        await offerEligibilityOrHandoff(fresh);
       } else if (turn.interactiveReplyId === "consent_no") {
-        await send(contact, { kind: "text", body: "No problem at all — message me anytime if you change your mind." });
-        await setStage(contact.id, "DECLINED");
+        await send(contact, {
+          kind: "text",
+          body: "No problem at all — we'll keep this between us. I'm still here for whatever you want to figure out.",
+        });
+        await setStage(contact.id, "COUNSELLING");
       } else {
-        await send(contact, consentAndDisclosurePayload());
+        // They typed instead of tapping — answer them properly rather than re-asking.
+        await setStage(contact.id, "COUNSELLING");
+        if (text) {
+          const result = await runCounselling(contact, text, sessionId, isReturningSession);
+          if (result.escalate) await escalateToHuman(contact, classifyEscalationReason(result.escalateReason));
+        }
       }
       return;
     }
@@ -277,92 +330,52 @@ async function handleInboundMessageInStage(
     case "AWAITING_AGE_GATE": {
       if (turn.interactiveReplyId === "age_adult") {
         await recordAgeGate(contact.id, true);
-        await send(contact, journeyForkPayload());
-        await setStage(contact.id, "AWAITING_JOURNEY_FORK");
+        await send(contact, salesConsentPayload());
+        await setStage(contact.id, "AWAITING_CONSENT");
       } else if (turn.interactiveReplyId === "age_minor") {
         await recordAgeGate(contact.id, false);
         await send(contact, {
           kind: "text",
-          body: "Thanks for letting me know. I can share general information, but I won't collect your details or pass you to sales until you're 18.",
+          body: "Thanks for telling me. I'll keep helping you plan — I just won't pass your details on or run a funding check until you're 18.",
         });
         await setStage(contact.id, "MINOR_CONTENT_ONLY");
       } else {
-        await send(contact, ageGatePayload());
-      }
-      return;
-    }
-
-    case "AWAITING_JOURNEY_FORK": {
-      const journeyMap: Record<string, "INTERNATIONAL" | "DOMESTIC"> = { journey_india: "DOMESTIC", journey_abroad: "INTERNATIONAL" };
-      const chosen = turn.interactiveReplyId ? journeyMap[turn.interactiveReplyId] : undefined;
-
-      if (chosen) {
-        const updated = await prisma.contact.update({ where: { id: contact.id }, data: { journey: chosen } });
-        const step = nextPendingStep(chosen, updated);
-        if (step) {
-          // A one-line reaction before the first pointed question — the difference between
-          // an interrogation and a conversation that happens to ask questions.
-          await send(
-            updated,
-            chosen === "INTERNATIONAL"
-              ? { kind: "text", body: "Studying abroad — exciting 🌍 Avanse funds students across a wide range of countries and courses, so let's find your fit." }
-              : { kind: "text", body: "Nice, plenty of strong options right here in India 🇮🇳 Let's zero in on what fits you best." }
-          );
-          await send(updated, step.prompt());
-          await setStage(contact.id, "PROFILING", { pendingProfilingField: step.field as string });
+        await setStage(contact.id, "COUNSELLING");
+        if (text) {
+          const result = await runCounselling(contact, text, sessionId, isReturningSession);
+          if (result.escalate) await escalateToHuman(contact, classifyEscalationReason(result.escalateReason));
         }
-      } else if (turn.interactiveReplyId === "journey_undecided") {
-        await send(contact, {
-          kind: "text",
-          body:
-            "Totally fine — a lot of students haven't decided. Broadly: abroad means a bigger ticket size and forex " +
-            "steps but strong global outcomes; domestic PG/skilling is faster and rupee-denominated. Ask me anything " +
-            "and I'll help you compare. I'll check back in a bit to see if you've decided.",
-        });
-        await setStage(contact.id, "COUNSELLING", { awaitingUndecidedRecheckAt: new Date(Date.now() + 5 * 60 * 1000) });
-      } else {
-        await send(contact, journeyForkPayload());
       }
       return;
     }
 
+    // Legacy stages from the old scripted funnel. Contacts mid-flow when this shipped get
+    // absorbed into the conversation rather than stranded — a tapped button still records
+    // its answer, and everything continues as a normal counselling turn from here on.
+    case "AWAITING_JOURNEY_FORK":
     case "PROFILING": {
-      const journey = contact.journey as Journey;
+      const journeyMap: Record<string, "INTERNATIONAL" | "DOMESTIC" | "UNDECIDED"> = {
+        journey_india: "DOMESTIC",
+        journey_abroad: "INTERNATIONAL",
+        journey_undecided: "UNDECIDED",
+      };
+      const chosenJourney = turn.interactiveReplyId ? journeyMap[turn.interactiveReplyId] : undefined;
       const resolved = turn.interactiveReplyId ? resolveProfilingReply(turn.interactiveReplyId) : null;
-      const pendingStep = stepsForJourney(journey === "DOMESTIC" ? "DOMESTIC" : "INTERNATIONAL").find(
-        (s) => (s.field as string) === contact.pendingProfilingField
-      );
 
-      const isTextAnswer = pendingStep?.kind === "text" && text && !/[?]/.test(text);
-      const matchesPending = resolved && (resolved.field as string) === contact.pendingProfilingField;
+      if (chosenJourney) {
+        await prisma.contact.update({ where: { id: contact.id }, data: { journey: chosenJourney } });
+      } else if (resolved) {
+        await prisma.contact.update({ where: { id: contact.id }, data: { [resolved.field as string]: resolved.value } });
+      }
 
-      if (matchesPending || isTextAnswer) {
-        const field = pendingStep!.field as string;
-        const value = matchesPending ? resolved!.value : text;
-        await prisma.contact.update({ where: { id: contact.id }, data: { [field]: value } });
+      await setStage(contact.id, "COUNSELLING", { pendingProfilingField: null });
+      const resumed = await prisma.contact.findUniqueOrThrow({ where: { id: contact.id } });
+      await handleQualificationIfNeeded(resumed);
 
-        await handleQualificationIfNeeded(contact);
-        const updated = await prisma.contact.findUniqueOrThrow({ where: { id: contact.id } });
-
-        const next = nextPendingStep(journey === "DOMESTIC" ? "DOMESTIC" : "INTERNATIONAL", updated);
-        if (next) {
-          await send(updated, next.prompt());
-          await prisma.contact.update({ where: { id: contact.id }, data: { pendingProfilingField: next.field as string } });
-        } else {
-          await setStage(contact.id, "COUNSELLING", { pendingProfilingField: null });
-          await sendRagHookTeaser(updated);
-          await offerEligibilityOrHandoff(updated);
-        }
-      } else if (text) {
-        // FR-C03 — answer the student's own question first, THEN re-ask the same pending field.
-        const result = await runCounselling(contact, text, sessionId, isReturningSession);
-        if (result.escalate) {
-          await escalateToHuman(contact, classifyEscalationReason(result.escalateReason));
-          return;
-        }
-        if (pendingStep) await send(contact, pendingStep.prompt());
-      } else if (pendingStep) {
-        await send(contact, pendingStep.prompt());
+      const spoken = text || turn.interactiveReplyTitle || "";
+      if (spoken) {
+        const result = await runCounselling(resumed, spoken, sessionId, isReturningSession);
+        if (result.escalate) await escalateToHuman(resumed, classifyEscalationReason(result.escalateReason));
       }
       return;
     }
@@ -424,12 +437,6 @@ async function handleInboundMessageInStage(
     case "MINOR_CONTENT_ONLY":
     case "DECLINED":
     case "COUNSELLING": {
-      if (contact.stage === "COUNSELLING" && !contact.journey && contact.awaitingUndecidedRecheckAt && contact.awaitingUndecidedRecheckAt.getTime() <= Date.now()) {
-        await send(contact, journeyForkPayload());
-        await setStage(contact.id, "AWAITING_JOURNEY_FORK", { awaitingUndecidedRecheckAt: null });
-        return;
-      }
-
       if (contact.stage === "COUNSELLING" && turn.interactiveReplyId === "start_eligibility") {
         await startEligibilityFlow(contact);
         return;
@@ -466,21 +473,9 @@ async function handleInboundMessageInStage(
         return;
       }
 
-      if (contact.stage === "COUNSELLING" && contact.attributionTier === "LOW" && !contact.collegeNameAttributed) {
-        // FR-A06 — Low-tier conversational fallback, asked naturally once. Whichever
-        // branch fires here owns this turn's reply — falling through to runCounselling
-        // below would let the NEXT unrelated message get misread as the college name.
-        const looksLikeCollegeAnswer = text.length < 60 && !/[?]/.test(text);
-        if (looksLikeCollegeAnswer && contact.pendingProfilingField === "__college_ask__") {
-          await stampConversationalCollege(contact.id, text);
-          await prisma.contact.update({ where: { id: contact.id }, data: { pendingProfilingField: null } });
-        } else if (contact.pendingProfilingField !== "__college_ask__") {
-          await prisma.contact.update({ where: { id: contact.id }, data: { pendingProfilingField: "__college_ask__" } });
-          await send(contact, { kind: "text", body: "By the way, which college are you at? Helps me tailor this better." });
-          return;
-        }
-      }
-
+      // FR-A06's conversational college fallback used to interrupt here with a scripted
+      // "which college are you at?". Guru now picks the college up naturally when it comes
+      // up and records it through save_student_profile (orchestrator.ts).
       const result = await runCounselling(contact, text, sessionId, isReturningSession);
       if (result.escalate) {
         await escalateToHuman(contact, classifyEscalationReason(result.escalateReason));
@@ -499,8 +494,14 @@ async function handleInboundMessageInStage(
     }
 
     default: {
-      await send(contact, consentAndDisclosurePayload());
-      await setStage(contact.id, "AWAITING_CONSENT");
+      // Unknown/stale stage — drop into the conversation rather than restarting a funnel.
+      await setStage(contact.id, "COUNSELLING");
+      if (text) {
+        const result = await runCounselling(contact, text, sessionId, isReturningSession);
+        if (result.escalate) await escalateToHuman(contact, classifyEscalationReason(result.escalateReason));
+      } else {
+        await send(contact, { kind: "text", body: GURU_GREETING });
+      }
     }
   }
 }

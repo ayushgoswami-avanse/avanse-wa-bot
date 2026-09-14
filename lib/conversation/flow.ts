@@ -173,8 +173,30 @@ async function offerEligibilityOrHandoff(contact: Contact): Promise<void> {
   });
 }
 
+function journeyForkPayload(): OutboundPayload {
+  return {
+    kind: "buttons",
+    body: "Quick thing first, so the team can pick this up correctly — are you looking at studying in India, or abroad?",
+    buttons: [
+      { id: "journey_abroad", title: "Abroad" },
+      { id: "journey_india", title: "In India" },
+      { id: "journey_undecided", title: "Not decided yet" },
+    ],
+  };
+}
+
 async function startEligibilityFlow(contact: Contact): Promise<void> {
   if (!(await ensureConsentAndAgeGate(contact))) return;
+
+  // Journey is the single highest-leverage gap — everything downstream (which profiling
+  // fields even apply, propensity scoring, cohort/persona) depends on it. Guru is expected
+  // to have picked this up naturally well before now (see orchestrator.ts's "STILL
+  // MISSING" prompt block); this is the one hard stop if it somehow still hasn't.
+  if (!contact.journey) {
+    await send(contact, journeyForkPayload());
+    await setStage(contact.id, "AWAITING_JOURNEY_FOR_ELIGIBILITY");
+    return;
+  }
 
   const enabled = await getConfigBool("FEATURE_TIER1_ELIGIBILITY_ENABLED");
   if (!enabled) {
@@ -191,6 +213,12 @@ async function startEligibilityFlow(contact: Contact): Promise<void> {
 
 async function triggerHandoff(contact: Contact): Promise<void> {
   if (!(await ensureConsentAndAgeGate(contact))) return;
+
+  if (!contact.journey) {
+    await send(contact, journeyForkPayload());
+    await setStage(contact.id, "AWAITING_JOURNEY_FOR_HANDOFF");
+    return;
+  }
 
   const { url } = await mintHandoffToken(contact);
   await send(contact, {
@@ -356,6 +384,37 @@ async function handleInboundMessageInStage(
           if (result.escalate) await escalateToHuman(contact, classifyEscalationReason(result.escalateReason));
         }
       }
+      return;
+    }
+
+    case "AWAITING_JOURNEY_FOR_HANDOFF":
+    case "AWAITING_JOURNEY_FOR_ELIGIBILITY": {
+      const journeyMap: Record<string, "INTERNATIONAL" | "DOMESTIC" | "UNDECIDED"> = {
+        journey_india: "DOMESTIC",
+        journey_abroad: "INTERNATIONAL",
+        journey_undecided: "UNDECIDED",
+      };
+      const chosen = turn.interactiveReplyId ? journeyMap[turn.interactiveReplyId] : undefined;
+      const resumeEligibility = contact.stage === "AWAITING_JOURNEY_FOR_ELIGIBILITY";
+
+      if (chosen) {
+        const updated = await prisma.contact.update({ where: { id: contact.id }, data: { journey: chosen } });
+        await setStage(contact.id, "COUNSELLING");
+        if (resumeEligibility) await startEligibilityFlow(updated);
+        else await triggerHandoff(updated);
+        return;
+      }
+
+      // Typed instead of tapping, or asked something else entirely — answer it properly,
+      // then re-offer the same fork rather than silently dropping what they were doing.
+      if (text) {
+        const result = await runCounselling(contact, text, sessionId, isReturningSession);
+        if (result.escalate) {
+          await escalateToHuman(contact, classifyEscalationReason(result.escalateReason));
+          return;
+        }
+      }
+      await send(contact, journeyForkPayload());
       return;
     }
 

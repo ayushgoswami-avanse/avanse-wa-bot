@@ -75,7 +75,16 @@ const PROFILE_TOOL: FunctionDeclaration = {
     type: Type.OBJECT,
     properties: {
       confirmedName: { type: Type.STRING, description: "The student's name, if they told you." },
-      journey: { type: Type.STRING, format: "enum", enum: ["INTERNATIONAL", "DOMESTIC", "UNDECIDED"], description: "Studying abroad, in India, or genuinely undecided." },
+      journey: {
+        type: Type.STRING,
+        format: "enum",
+        enum: ["INTERNATIONAL", "DOMESTIC", "UNDECIDED"],
+        description:
+          "Studying abroad, in India, or genuinely undecided. Set this THE MOMENT it becomes clear, even " +
+          "from an offhand remark like 'MS in the US' — don't wait for an explicit 'I've decided'. If " +
+          "you're also sending destinationCountry/degreeLevel or courseCategory/targetInstitution this " +
+          "turn, journey must come with them.",
+      },
       destinationCountry: { type: Type.STRING, description: "Target country, if abroad." },
       degreeLevel: { type: Type.STRING, description: "Masters / Bachelors / PhD / other." },
       intendedIntake: { type: Type.STRING, description: "e.g. 'Fall 2026'." },
@@ -331,6 +340,8 @@ const PROFILE_STRING_FIELDS = [
 ] as const;
 
 const VALID_JOURNEYS = new Set(["INTERNATIONAL", "DOMESTIC", "UNDECIDED"]);
+const INTERNATIONAL_ONLY_FIELDS = new Set(["destinationCountry", "degreeLevel", "intendedIntake", "testStatus"]);
+const DOMESTIC_ONLY_FIELDS = new Set(["courseCategory", "targetInstitution", "intakeOrBatch", "employmentStatus", "entranceStatus"]);
 
 /** Applies what Guru learned this turn. Only writes fields the model actually returned, so a
  * quiet turn never blanks out something captured earlier.
@@ -351,6 +362,18 @@ async function applyProfileUpdate(contactId: string, args: Record<string, unknow
   if (journey && VALID_JOURNEYS.has(journey)) {
     data.journey = journey;
     captured.push("journey");
+  } else if (Object.keys(data).some((f) => INTERNATIONAL_ONLY_FIELDS.has(f)) !== Object.keys(data).some((f) => DOMESTIC_ONLY_FIELDS.has(f))) {
+    // The model captured a branch-specific field (destination country, degree level, ...)
+    // without also setting journey itself — observed live: a student clearly on an "MS in
+    // the US" track was left with journey: null, which showed as "Journey: Undecided" on
+    // both consoles and silently mis-fed cohort/persona segmentation. Only infer when
+    // exactly one branch's fields showed up this turn, and only onto a contact that
+    // doesn't already have an explicit journey (never override a real answer).
+    const existing = await prisma.contact.findUnique({ where: { id: contactId }, select: { journey: true } });
+    if (!existing?.journey) {
+      data.journey = Object.keys(data).some((f) => INTERNATIONAL_ONLY_FIELDS.has(f)) ? "INTERNATIONAL" : "DOMESTIC";
+      captured.push("journey(inferred)");
+    }
   }
 
   // FR-A06 — conversational college attribution, now picked up from natural conversation

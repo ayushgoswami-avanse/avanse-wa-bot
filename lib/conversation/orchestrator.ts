@@ -5,6 +5,7 @@ import { getGoogleClient, getGeminiModel } from "@/lib/googleClient";
 import { retrieveInternationalOutcomes, retrieveDomesticOutcomes, formatOutcomesForPrompt } from "./rag";
 import { runGroundedSearch, sanitizeQueryForGrounding, isAlwaysGroundTopic } from "./grounding";
 import { stampConversationalCollege } from "@/lib/attribution";
+import { recordModelCall } from "@/lib/observability/modelCallLog";
 
 /** Module D — AI counselling and grounding (BRD FR-D01..FR-D12, PRD Layer 4).
  *
@@ -492,7 +493,9 @@ type GeminiContent = { role: "user" | "model"; parts: GeminiPart[] };
 export async function generateCounsellingReply(
   contact: Contact,
   studentMessage: string,
-  isReturningSession = false
+  isReturningSession = false,
+  sessionId: string | null = null,
+  callKind: "counselling" | "suggested_reply" = "counselling"
 ): Promise<OrchestratorResult> {
   const client = getGoogleClient();
   if (!client) return FALLBACK_RESULT;
@@ -502,7 +505,7 @@ export async function generateCounsellingReply(
   const forcedTopic = await isAlwaysGroundTopic(sanitized);
   let forcedGroundingNote = "";
   if (forcedTopic) {
-    const grounded = await runGroundedSearch(contact.id, studentMessage);
+    const grounded = await runGroundedSearch(contact.id, studentMessage, sessionId);
     forcedGroundingNote =
       `\nVERIFIED LIVE RESULT (topic: "${forcedTopic}", as of ${grounded.asOf}) — you MUST use this, cite it, ` +
       `and state the as-of date since it can change:\n${grounded.text}` +
@@ -534,9 +537,11 @@ export async function generateCounsellingReply(
 
   for (let turn = 0; turn < MAX_TURNS; turn++) {
     let response: Awaited<ReturnType<typeof client.models.generateContent>>;
+    const callStarted = Date.now();
+    const model = getGeminiModel();
     try {
       response = await client.models.generateContent({
-        model: getGeminiModel(),
+        model,
         contents,
         config: {
           systemInstruction: buildSystemPrompt(contact, isReturningSession, forcedGroundingNote),
@@ -547,6 +552,14 @@ export async function generateCounsellingReply(
       console.error("[orchestrator] Gemini call failed:", err);
       return FALLBACK_RESULT;
     }
+    await recordModelCall({
+      contactId: contact.id,
+      sessionId,
+      kind: callKind,
+      model,
+      usage: response.usageMetadata,
+      latencyMs: Date.now() - callStarted,
+    });
 
     const functionCalls = response.functionCalls ?? [];
     const submit = functionCalls.find((c) => c.name === "submit_reply");
@@ -569,7 +582,7 @@ export async function generateCounsellingReply(
       };
       if (!forcedTopic && groundingCallsUsed === 0) {
         await prisma.groundingLog.create({
-          data: { contactId: contact.id, queryClass: "RAG_ONLY", sanitizedQuery: sanitized, cacheHit: false },
+          data: { contactId: contact.id, sessionId, queryClass: "RAG_ONLY", sanitizedQuery: sanitized, cacheHit: false },
         });
       }
       const sentiment = args.sentiment?.toUpperCase();
@@ -641,7 +654,7 @@ export async function generateCounsellingReply(
 
       if (call.name === "ground_with_google_search") {
         groundingCallsUsed++;
-        const grounded = await runGroundedSearch(contact.id, args.query ?? studentMessage);
+        const grounded = await runGroundedSearch(contact.id, args.query ?? studentMessage, sessionId);
         responseParts.push({
           functionResponse: {
             name: call.name,

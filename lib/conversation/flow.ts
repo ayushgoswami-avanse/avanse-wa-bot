@@ -298,7 +298,7 @@ async function runCounselling(
   sessionId: string,
   isNewSession: boolean
 ): Promise<{ escalate: boolean; escalateReason?: string; consecutiveNegativeTurns: number }> {
-  const result = await generateCounsellingReply(contact, text, isNewSession);
+  const result = await generateCounsellingReply(contact, text, isNewSession, sessionId);
   // A long, genuinely thorough answer arrives as consecutive messages rather than one
   // truncated bubble — see orchestrator.ts's splitReply.
   for (const segment of result.replySegments) {

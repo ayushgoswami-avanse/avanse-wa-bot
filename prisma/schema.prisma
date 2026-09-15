@@ -239,6 +239,7 @@ model Contact {
   transcriptViews       TranscriptView[]
   alumniConnects        AlumniConnect[]
   groundingLogs         GroundingLog[]
+  modelCallLogs         ModelCallLog[]
   lastTouchEvents       LastTouchEvent[]
   interactionSessions   InteractionSession[]
   dispositionEvents     DispositionEvent[]
@@ -489,6 +490,7 @@ model GroundingLog {
   id            String         @id @default(cuid())
   contactId     String
   contact       Contact        @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  sessionId     String?        // which InteractionSession this decision belongs to — powers session/user-level "grounding hits" KPIs
   queryClass    GroundingClass
   sanitizedQuery String        @db.Text
   allowListTopic String?
@@ -498,6 +500,64 @@ model GroundingLog {
   createdAt     DateTime       @default(now())
 
   @@index([contactId, createdAt])
+  @@index([sessionId])
+}
+
+/// Token usage for every Gemini call this app makes (the main counselling turn AND the
+/// separate grounding-search call are distinct API calls, each with their own usage) —
+/// previously untracked entirely, so "tokens consumed" had no data behind it anywhere.
+/// The single source of truth for the cost-reporting dashboard's token/cost KPIs.
+model ModelCallLog {
+  id           String   @id @default(cuid())
+  contactId    String
+  contact      Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  sessionId    String?
+  kind         String   // "counselling" | "grounding" | "suggested_reply" | "eval_judge"
+  model        String
+  inputTokens  Int      @default(0)
+  outputTokens Int      @default(0)
+  totalTokens  Int      @default(0)
+  latencyMs    Int?
+  createdAt    DateTime @default(now())
+
+  @@index([contactId, createdAt])
+  @@index([sessionId])
+  @@index([createdAt])
+}
+
+/// A batch of simulated conversations run against the live bot to assess quality —
+/// persists what used to be ephemeral chat output from an ad hoc test pass, so eval
+/// results (and any regression between runs) are visible in the dashboard over time.
+model EvalRun {
+  id          String     @id @default(cuid())
+  label       String?
+  startedAt   DateTime   @default(now())
+  completedAt DateTime?
+  totalCases  Int        @default(0)
+  passedCases Int        @default(0)
+  avgScore    Float?
+  createdAt   DateTime   @default(now())
+
+  cases       EvalCase[]
+}
+
+model EvalCase {
+  id                  String   @id @default(cuid())
+  runId               String
+  run                 EvalRun  @relation(fields: [runId], references: [id], onDelete: Cascade)
+  persona             String
+  score               Float?
+  dataCaptureNote     String?  @db.Text
+  groundingNote       String?  @db.Text
+  conversationFlowNote String? @db.Text
+  responseQualityNote String?  @db.Text
+  counsellingNote     String?  @db.Text
+  escalationNote      String?  @db.Text
+  bugsFoundJson       String?  @db.Text // JSON array of {summary, evidenceQuote, severity}
+  contactWaId         String?  // the simulated test contact this ran against (usually deleted after)
+  createdAt           DateTime @default(now())
+
+  @@index([runId])
 }
 
 /// FR-D07 — semantic cache for grounded answers, configurable TTL.
@@ -531,10 +591,17 @@ model PilotMetricSnapshot {
 model CostLedgerEntry {
   id          String   @id @default(cuid())
   date        DateTime @db.Date
-  category    String // "ai_tokens" | "ai_grounding" | "whatsapp_marketing" | "whatsapp_utility"
+  category    String // "ai_tokens" (every Gemini call, counselling+grounding+judge alike) | "whatsapp_marketing" | "whatsapp_utility"
   journey     Journey?
   amountInr   Float
   units       Int?     // tokens, grounded calls, templates sent, etc.
+  // "production" | "eval" — an eval run's own Gemini spend must never blend into the
+  // dashboard's real cost/spend KPIs (the observability research this was built from
+  // calls this out explicitly: synthetic/eval traffic entering the same aggregate as
+  // production traffic is a classic false trend). ModelCallLog/GroundingLog rows from an
+  // eval run don't need this tag — they're deleted with the eval's throwaway contact via
+  // cascade before anyone reads the dashboard; this row has no contactId to cascade from.
+  environment String   @default("production")
   createdAt   DateTime @default(now())
 
   @@index([date, category])

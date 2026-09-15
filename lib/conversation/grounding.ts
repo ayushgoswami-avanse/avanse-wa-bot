@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { getConfigList, getConfigNumber } from "@/lib/config";
 import { getGoogleClient, getGeminiModel } from "@/lib/googleClient";
+import { recordModelCall } from "@/lib/observability/modelCallLog";
 
 /** Module D grounding path — FR-D03..FR-D08. Google Gemini with Search Grounding is
  * invoked as a TOOL only, never as the conversation model (that's Claude — see
@@ -143,14 +144,15 @@ async function setCached(query: string, answer: GroundedAnswer): Promise<void> {
  */
 export async function runGroundedSearch(
   contactId: string,
-  rawQuery: string
+  rawQuery: string,
+  sessionId: string | null = null
 ): Promise<GroundedAnswer> {
   const sanitized = sanitizeQueryForGrounding(rawQuery);
 
   const cached = await getCached(sanitized);
   if (cached) {
     await prisma.groundingLog.create({
-      data: { contactId, queryClass: "CACHE_GROUNDED", sanitizedQuery: sanitized, cacheHit: true },
+      data: { contactId, sessionId, queryClass: "CACHE_GROUNDED", sanitizedQuery: sanitized, cacheHit: true },
     });
     return cached;
   }
@@ -168,17 +170,26 @@ export async function runGroundedSearch(
       fromCache: false,
     };
     await prisma.groundingLog.create({
-      data: { contactId, queryClass: "REFUSED", sanitizedQuery: sanitized, cacheHit: false },
+      data: { contactId, sessionId, queryClass: "REFUSED", sanitizedQuery: sanitized, cacheHit: false },
     });
     return fallback;
   }
 
   const started = Date.now();
+  const model = getGeminiModel();
   try {
     const response = await client.models.generateContent({
-      model: getGeminiModel(),
+      model,
       contents: sanitized,
       config: { tools: [{ googleSearch: {} }] },
+    });
+    await recordModelCall({
+      contactId,
+      sessionId,
+      kind: "grounding",
+      model,
+      usage: response.usageMetadata,
+      latencyMs: Date.now() - started,
     });
 
     const text = response.text ?? "I couldn't find a confident live answer for that.";
@@ -195,6 +206,7 @@ export async function runGroundedSearch(
     await prisma.groundingLog.create({
       data: {
         contactId,
+        sessionId,
         queryClass: "LIVE_GROUNDED",
         sanitizedQuery: sanitized,
         citations: JSON.stringify(citations),
@@ -216,6 +228,7 @@ export async function runGroundedSearch(
     await prisma.groundingLog.create({
       data: {
         contactId,
+        sessionId,
         queryClass: "REFUSED",
         sanitizedQuery: sanitized,
         cacheHit: false,

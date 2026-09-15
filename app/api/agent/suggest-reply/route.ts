@@ -26,7 +26,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ suggestion: "" , note: "No recent student message to respond to."});
   }
 
-  const result = await generateCounsellingReply(contact, lastInbound.body, false);
+  // Read-only lookup, unlike touchSession — an agent drafting a suggestion shouldn't
+  // bump messageCount or open/close a session as a side effect of just viewing a draft.
+  const currentSession = await prisma.interactionSession.findFirst({
+    where: { contactId },
+    orderBy: { startedAt: "desc" },
+  });
+
+  const result = await generateCounsellingReply(contact, lastInbound.body, false, currentSession?.id ?? null, "suggested_reply");
   // The agent edits this in one textarea before sending, so segments (only ever split for
   // WhatsApp's per-message length) are joined back into one draft here.
   return NextResponse.json({ suggestion: result.replySegments.join("\n\n") });

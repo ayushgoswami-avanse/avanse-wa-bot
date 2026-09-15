@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { StatCard } from "@/components/ui/StatCard";
 import { getCostDashboardData, getEvalRuns, PERIOD_LABELS, type Period, type KpiValue } from "@/lib/costMetrics";
+import { STALE_AFTER_MS } from "@/lib/evals/runEval";
 import { RunEvalButton } from "../evals/RunEvalButton";
 
 export const dynamic = "force-dynamic";
@@ -200,15 +201,29 @@ export default async function CostsPage({
                     return s;
                   }
                 }, 0);
+                const isStale = !run.completedAt && Date.now() - run.startedAt.getTime() > STALE_AFTER_MS;
+                const isRunning = !run.completedAt && !isStale;
                 return (
                   <tr key={run.id}>
                     <td className="px-4 py-2">{run.startedAt.toLocaleString("en-IN")}</td>
-                    <td className="px-4 py-2">{run.totalCases}</td>
-                    <td className="px-4 py-2">{run.passedCases}</td>
-                    <td className="px-4 py-2">{run.avgScore !== null ? run.avgScore.toFixed(0) : "—"}</td>
-                    <td className="px-4 py-2">
-                      {bugCount > 0 ? <span className="text-red-600 font-medium">{bugCount}</span> : "0"}
-                    </td>
+                    {isStale ? (
+                      <td colSpan={4} className="px-4 py-2 text-amber-600">
+                        Interrupted before completing (server likely restarted mid-run) — {run.cases.length}/{run.totalCases} personas finished.
+                      </td>
+                    ) : isRunning ? (
+                      <td colSpan={4} className="px-4 py-2 text-slate-500">
+                        Running… {run.cases.length}/{run.totalCases} personas so far. Refresh to update.
+                      </td>
+                    ) : (
+                      <>
+                        <td className="px-4 py-2">{run.totalCases}</td>
+                        <td className="px-4 py-2">{run.passedCases}</td>
+                        <td className="px-4 py-2">{run.avgScore !== null ? run.avgScore.toFixed(0) : "—"}</td>
+                        <td className="px-4 py-2">
+                          {bugCount > 0 ? <span className="text-red-600 font-medium">{bugCount}</span> : "0"}
+                        </td>
+                      </>
+                    )}
                   </tr>
                 );
               })}

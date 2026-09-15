@@ -192,8 +192,26 @@ async function judgeTranscript(persona: string, contactId: string): Promise<Judg
 
 const PASS_THRESHOLD = 70;
 
-export async function runEvalPanel(personas: PersonaScript[] = DEFAULT_PERSONAS, label?: string): Promise<string> {
-  const run = await prisma.evalRun.create({ data: { label: label ?? null } });
+// A run whose completedAt is still null after this long is presumed dead (Render's free
+// tier can idle-spin-down or OOM-kill the whole process mid-run — see the research this
+// was built from — which means neither the success path nor this file's own .catch()
+// ever gets to run). Used both to stop a single-flight check from blocking forever on an
+// orphaned row, and to render such a row as failed/interrupted instead of "still running".
+export const STALE_AFTER_MS = 15 * 60 * 1000;
+
+export async function runEvalPanel(
+  personas: PersonaScript[] = DEFAULT_PERSONAS,
+  label?: string,
+  existingRunId?: string
+): Promise<string> {
+  // The route pre-creates the EvalRun row itself so it can return the runId to the client
+  // immediately (see app/api/admin/evals/run/route.ts), before this function's own work —
+  // which now runs after the response via Next's after() — even starts. totalCases is set
+  // to the PLANNED count right away so the status-poll route can compare a live count of
+  // this run's EvalCase rows against it and report real "3/5 personas complete" progress.
+  const run = existingRunId
+    ? await prisma.evalRun.update({ where: { id: existingRunId }, data: { totalCases: personas.length } })
+    : await prisma.evalRun.create({ data: { label: label ?? null, totalCases: personas.length } });
 
   const cases: JudgedCase[] = [];
   for (const script of personas) {

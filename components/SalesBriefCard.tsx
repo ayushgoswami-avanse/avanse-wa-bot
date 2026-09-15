@@ -1,4 +1,5 @@
 import type { SalesBrief } from "@/lib/salesBrief";
+import type { FactSection } from "@/lib/leadFacts";
 import { Avatar, TemperatureBadge, Tag } from "@/components/ui/Badge";
 
 export type BriefFact = { label: string; value: string };
@@ -16,13 +17,13 @@ export default function SalesBriefCard({
   brief,
   waId,
   temperature,
-  facts,
+  sections,
   segmentTags,
 }: {
   brief: SalesBrief;
   waId: string;
   temperature: "Hot" | "Warm" | "Cold";
-  facts: BriefFact[];
+  sections: FactSection[];
   segmentTags?: string[];
 }) {
   return (
@@ -52,21 +53,28 @@ export default function SalesBriefCard({
         </div>
       )}
 
-      <div className="flex flex-wrap gap-1.5 mt-3">
-        {facts.map((f) => {
-          const isNull = f.value === "null";
-          return (
-            <span
-              key={f.label}
-              className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] ${
-                isNull ? "bg-amber-50 border-amber-200" : "bg-slate-50 border-slate-200"
-              }`}
-            >
-              <span className="text-slate-500">{f.label}</span>
-              <span className={isNull ? "italic text-amber-600" : "font-medium text-slate-800"}>{f.value}</span>
-            </span>
-          );
-        })}
+      <div className="mt-3 space-y-2.5">
+        {sections.map((section) => (
+          <div key={section.title}>
+            <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1">{section.title}</div>
+            <div className="flex flex-wrap gap-1.5">
+              {section.facts.map((f) => {
+                const isNull = f.value === "null";
+                return (
+                  <span
+                    key={f.label}
+                    className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] ${
+                      isNull ? "bg-amber-50 border-amber-200" : "bg-slate-50 border-slate-200"
+                    }`}
+                  >
+                    <span className="text-slate-500">{f.label}</span>
+                    <span className={isNull ? "italic text-amber-600" : "font-medium text-slate-800"}>{f.value}</span>
+                  </span>
+                );
+              })}
+            </div>
+          </div>
+        ))}
       </div>
 
       <div className="mt-3 pt-3 border-t border-slate-100 space-y-1.5">

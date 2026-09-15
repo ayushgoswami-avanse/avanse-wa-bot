@@ -64,7 +64,7 @@ function EventCard({ event }: { event: TimelineEvent }) {
               </span>
             )}
           </div>
-          {s.summary && <p className="text-[11px] text-slate-600 mt-1 line-clamp-2">{s.summary.split("\n").pop()?.replace(/^- /, "")}</p>}
+          {s.summary && <p className="text-[11px] text-slate-600 mt-1 whitespace-pre-wrap">{s.summary.split("\n").pop()?.replace(/^- /, "")}</p>}
           {shown.length > 0 && (
             <div className="flex flex-wrap gap-1 mt-1.5">
               {shown.map((c) => (
@@ -84,7 +84,7 @@ function EventCard({ event }: { event: TimelineEvent }) {
         <>
           <div className="text-xs font-semibold text-violet-700">{DISPOSITION_LABEL[event.disposition] ?? event.disposition}</div>
           <div className="text-[10.5px] text-slate-500 mt-1">by {event.agentName}</div>
-          {event.note && <p className="text-[11px] text-slate-600 mt-1 line-clamp-2">{event.note}</p>}
+          {event.note && <p className="text-[11px] text-slate-600 mt-1 whitespace-pre-wrap">{event.note}</p>}
         </>
       );
 
@@ -92,7 +92,7 @@ function EventCard({ event }: { event: TimelineEvent }) {
       return (
         <>
           <div className="text-xs font-semibold text-slate-900">Note · {event.agentName}</div>
-          <p className="text-[11px] text-slate-600 mt-1 line-clamp-3">{event.body}</p>
+          <p className="text-[11px] text-slate-600 mt-1 whitespace-pre-wrap">{event.body}</p>
         </>
       );
 
@@ -133,7 +133,7 @@ export default function LeadTimeline({ events }: { events: TimelineEvent[] }) {
               <span className={`w-2.5 h-2.5 rounded-full ring-[3px] ring-white ${DOT_STYLE[event.kind]}`} />
               <span className="text-[10px] text-slate-400 whitespace-nowrap">{formatAt(event.at)}</span>
             </div>
-            <div className="bg-white rounded-xl border border-slate-200 p-3 shadow-sm h-[104px] overflow-hidden">
+            <div className="bg-white rounded-xl border border-slate-200 p-3 shadow-sm min-h-[104px]">
               <EventCard event={event} />
             </div>
           </div>

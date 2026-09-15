@@ -11,5 +11,5 @@ import { useLiveThread, type ThreadState } from "@/components/useLiveThread";
  */
 export default function LiveSalesBrief({ contactId, initial }: { contactId: string; initial: ThreadState }) {
   const { brief, facts, temperature, segmentTags, contact } = useLiveThread(contactId, initial);
-  return <SalesBriefCard brief={brief} waId={contact.waId} temperature={temperature} facts={facts} segmentTags={segmentTags} />;
+  return <SalesBriefCard brief={brief} waId={contact.waId} temperature={temperature} sections={facts} segmentTags={segmentTags} />;
 }

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Message, Handover } from "@prisma/client";
 import type { SalesBrief } from "@/lib/salesBrief";
-import type { BriefFact } from "@/components/SalesBriefCard";
+import type { FactSection } from "@/lib/leadFacts";
 
 export type ThreadMeta = {
   id: string;
@@ -22,7 +22,7 @@ export type ThreadState = {
   inWindow: boolean;
   contact: ThreadMeta;
   brief: SalesBrief;
-  facts: BriefFact[];
+  facts: FactSection[];
   temperature: "Hot" | "Warm" | "Cold";
   segmentTags: string[];
 };

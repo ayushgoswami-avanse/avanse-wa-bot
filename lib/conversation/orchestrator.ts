@@ -70,7 +70,10 @@ const PROFILE_TOOL: FunctionDeclaration = {
     "Call this whenever a real detail surfaces — never ask a question just to fill a field here. " +
     "Only pass fields you actually learned or that changed; omit everything else. The student " +
     "never sees this, and it does not replace your reply. Call it in the SAME turn as " +
-    "submit_reply — they go together; do not spend a separate round trip on it.",
+    "submit_reply — they go together; do not spend a separate round trip on it. A CORRECTION is just " +
+    "as important as new information: if they say something already on file was wrong ('actually I'm " +
+    "in 4th year, not 3rd'), save the corrected value THIS turn — acknowledging it in your reply " +
+    "without also re-saving it leaves the old, wrong value on record.",
   parameters: {
     type: Type.OBJECT,
     properties: {
@@ -86,7 +89,14 @@ const PROFILE_TOOL: FunctionDeclaration = {
           "turn, journey must come with them.",
       },
       destinationCountry: { type: Type.STRING, description: "Target country, if abroad." },
-      degreeLevel: { type: Type.STRING, description: "Masters / Bachelors / PhD / other." },
+      degreeLevel: {
+        type: Type.STRING,
+        description:
+          "The level of the degree they are now PURSUING/TARGETING — Masters / Bachelors / PhD / other. An " +
+          "MBA is a Masters. Do NOT put their current/already-in-progress degree here if it differs from " +
+          "what they're applying for next (e.g. a 4th-year engineering Bachelor's student targeting an MBA " +
+          "is degreeLevel: 'Masters', currentYearOfStudy: '4th year' — never 'Bachelors' here).",
+      },
       fieldOfStudy: {
         type: Type.STRING,
         description:

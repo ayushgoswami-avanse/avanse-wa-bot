@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Message, Handover } from "@prisma/client";
+import type { SalesBrief } from "@/lib/salesBrief";
+import type { BriefFact } from "@/components/SalesBriefCard";
 
 export type ThreadMeta = {
   id: string;
@@ -19,6 +21,10 @@ export type ThreadState = {
   handover: Handover | null;
   inWindow: boolean;
   contact: ThreadMeta;
+  brief: SalesBrief;
+  facts: BriefFact[];
+  temperature: "Hot" | "Warm" | "Cold";
+  segmentTags: string[];
 };
 
 /** Keeps a thread view in sync with reality without a manual reload: subscribes to the

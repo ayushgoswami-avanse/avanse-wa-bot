@@ -1,41 +1,29 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import type { Message, Handover } from "@prisma/client";
 import ConversationView from "@/components/ConversationView";
 import DispositionPanel, { type NoteEntry } from "@/components/DispositionPanel";
 import ProfileFieldsPanel, { type ProfileFieldValues } from "@/components/ProfileFieldsPanel";
-import { useLiveThread, type ThreadMeta } from "@/components/useLiveThread";
+import { useLiveThread, type ThreadState } from "@/components/useLiveThread";
 import SendBox from "./SendBox";
 import HandoverControls from "./HandoverControls";
 
 export default function LiveAgentThread({
   contactId,
-  initialMessages,
-  initialHandover,
-  initialInWindow,
-  initialMeta,
+  initial,
   templates,
   currentDisposition,
   initialNotes,
   profileFields,
 }: {
   contactId: string;
-  initialMessages: Message[];
-  initialHandover: Handover | null;
-  initialInWindow: boolean;
-  initialMeta: ThreadMeta;
+  initial: ThreadState;
   templates: { name: string; category: string }[];
   currentDisposition: string;
   initialNotes: NoteEntry[];
   profileFields: ProfileFieldValues;
 }) {
-  const { messages, handover, inWindow, contact, refresh } = useLiveThread(contactId, {
-    messages: initialMessages,
-    handover: initialHandover,
-    inWindow: initialInWindow,
-    contact: initialMeta,
-  });
+  const { messages, handover, inWindow, contact, refresh } = useLiveThread(contactId, initial);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const lastCount = useRef(messages.length);

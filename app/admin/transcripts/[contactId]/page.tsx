@@ -1,6 +1,5 @@
 import { prisma } from "@/lib/prisma";
 import { getSession, canViewFinancials } from "@/lib/auth";
-import SalesBriefCard from "@/components/SalesBriefCard";
 import { buildSalesBrief } from "@/lib/salesBrief";
 import { buildLeadFacts } from "@/lib/leadFacts";
 import { computeCohort } from "@/lib/segmentation";
@@ -9,6 +8,7 @@ import { computeServiceWindow } from "@/lib/messaging/sendGovernor";
 import { buildLeadTimeline } from "@/lib/timeline";
 import { getAttributionSource } from "@/lib/attribution";
 import LiveTranscript from "./LiveTranscript";
+import LiveSalesBrief from "@/components/LiveSalesBrief";
 import LeadTimeline from "@/components/LeadTimeline";
 import DispositionPanel from "@/components/DispositionPanel";
 import ProfileFieldsPanel from "@/components/ProfileFieldsPanel";
@@ -39,6 +39,26 @@ export default async function TranscriptDetailPage({ params }: { params: Promise
   const isAdmin = session?.role === "ADMIN";
   const facts = buildLeadFacts(contact, { inWindow, showFinancials, sourceSummary: source.summary });
 
+  const threadState = {
+    messages,
+    handover: openHandover,
+    inWindow,
+    contact: {
+      id: contact.id,
+      waId: contact.waId,
+      journey: contact.journey,
+      stage: contact.stage,
+      attributionTier: contact.attributionTier,
+      propensityBand: contact.propensityBand,
+      destinationCountry: showFinancials ? contact.destinationCountry : null,
+      courseCategory: showFinancials ? contact.courseCategory : null,
+    },
+    brief,
+    facts,
+    temperature: bandToTemperature(contact.propensityBand),
+    segmentTags: cohort.segmentTags,
+  };
+
   return (
     <div className="space-y-5">
       <div>
@@ -48,7 +68,7 @@ export default async function TranscriptDetailPage({ params }: { params: Promise
 
       <div className="flex items-start gap-3">
         <div className="flex-1 min-w-0">
-          <SalesBriefCard brief={brief} waId={contact.waId} temperature={bandToTemperature(contact.propensityBand)} facts={facts} segmentTags={cohort.segmentTags} />
+          <LiveSalesBrief contactId={contact.id} initial={threadState} />
         </div>
         {isAdmin && (
           <div className="shrink-0 pt-1">
@@ -59,22 +79,7 @@ export default async function TranscriptDetailPage({ params }: { params: Promise
 
       <div className="grid grid-cols-3 gap-5">
         <div className="col-span-2">
-          <LiveTranscript
-            contactId={contact.id}
-            initialMessages={messages}
-            initialHandover={openHandover}
-            initialInWindow={inWindow}
-            initialMeta={{
-              id: contact.id,
-              waId: contact.waId,
-              journey: contact.journey,
-              stage: contact.stage,
-              attributionTier: contact.attributionTier,
-              propensityBand: contact.propensityBand,
-              destinationCountry: showFinancials ? contact.destinationCountry : null,
-              courseCategory: showFinancials ? contact.courseCategory : null,
-            }}
-          />
+          <LiveTranscript contactId={contact.id} initial={threadState} />
         </div>
         <div className="space-y-4">
           {session && (

@@ -1,28 +1,16 @@
 "use client";
 
-import type { Message, Handover } from "@prisma/client";
 import ConversationView from "@/components/ConversationView";
-import { useLiveThread, type ThreadMeta } from "@/components/useLiveThread";
+import { useLiveThread, type ThreadState } from "@/components/useLiveThread";
 
 export default function LiveTranscript({
   contactId,
-  initialMessages,
-  initialHandover,
-  initialInWindow,
-  initialMeta,
+  initial,
 }: {
   contactId: string;
-  initialMessages: Message[];
-  initialHandover: Handover | null;
-  initialInWindow: boolean;
-  initialMeta: ThreadMeta;
+  initial: ThreadState;
 }) {
-  const { messages } = useLiveThread(contactId, {
-    messages: initialMessages,
-    handover: initialHandover,
-    inWindow: initialInWindow,
-    contact: initialMeta,
-  });
+  const { messages } = useLiveThread(contactId, initial);
 
   return (
     <div className="animate-fade-in bg-gradient-to-b from-slate-50 to-white rounded-2xl border border-slate-200 p-5 max-h-[70vh] overflow-y-auto brand-scroll shadow-sm">

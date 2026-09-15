@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { getSession, canViewFinancials } from "@/lib/auth";
 import { computeServiceWindow } from "@/lib/messaging/sendGovernor";
-import SalesBriefCard from "@/components/SalesBriefCard";
+import LiveSalesBrief from "@/components/LiveSalesBrief";
 import { buildSalesBrief } from "@/lib/salesBrief";
 import { buildLeadFacts } from "@/lib/leadFacts";
 import { computeCohort } from "@/lib/segmentation";
@@ -32,6 +32,26 @@ export default async function AgentThreadPage({ params }: { params: Promise<{ co
   const cohort = computeCohort(contact);
   const facts = buildLeadFacts(contact, { inWindow, showFinancials, sourceSummary: source.summary });
 
+  const threadState = {
+    messages,
+    handover,
+    inWindow,
+    contact: {
+      id: contact.id,
+      waId: contact.waId,
+      journey: contact.journey,
+      stage: contact.stage,
+      attributionTier: contact.attributionTier,
+      propensityBand: contact.propensityBand,
+      destinationCountry: showFinancials ? contact.destinationCountry : null,
+      courseCategory: showFinancials ? contact.courseCategory : null,
+    },
+    brief,
+    facts,
+    temperature: bandToTemperature(contact.propensityBand),
+    segmentTags: cohort.segmentTags,
+  };
+
   return (
     <div className="space-y-5">
       <div>
@@ -39,23 +59,11 @@ export default async function AgentThreadPage({ params }: { params: Promise<{ co
         <LeadTimeline events={events} />
       </div>
 
-      <SalesBriefCard brief={brief} waId={contact.waId} temperature={bandToTemperature(contact.propensityBand)} facts={facts} segmentTags={cohort.segmentTags} />
+      <LiveSalesBrief contactId={contact.id} initial={threadState} />
 
       <LiveAgentThread
         contactId={contact.id}
-        initialMessages={messages}
-        initialHandover={handover}
-        initialInWindow={inWindow}
-        initialMeta={{
-          id: contact.id,
-          waId: contact.waId,
-          journey: contact.journey,
-          stage: contact.stage,
-          attributionTier: contact.attributionTier,
-          propensityBand: contact.propensityBand,
-          destinationCountry: showFinancials ? contact.destinationCountry : null,
-          courseCategory: showFinancials ? contact.courseCategory : null,
-        }}
+        initial={threadState}
         templates={templates.map((t) => ({ name: t.name, category: t.category }))}
         currentDisposition={contact.disposition}
         initialNotes={notes.map((n) => ({ id: n.id, body: n.body, createdAt: n.createdAt.toISOString(), agentName: n.author.displayName }))}

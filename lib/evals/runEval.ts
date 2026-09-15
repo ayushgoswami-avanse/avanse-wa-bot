@@ -198,7 +198,12 @@ export async function runEvalPanel(personas: PersonaScript[] = DEFAULT_PERSONAS,
   const cases: JudgedCase[] = [];
   for (const script of personas) {
     const waId = newWebMirrorWaId();
-    const { contact } = await findOrCreateContact(waId, `Eval — ${script.persona}`, null);
+    // No profileName: orchestrator.ts legitimately treats it as the student's real WhatsApp
+    // display name and addresses them by it — live-verified an earlier version of this
+    // harness passing a debug label here ("Eval — <persona>") got Guru to greet the
+    // student as "Eval" mid-conversation, surfacing as a false-positive "hallucinated
+    // name" bug that was actually this harness's own contamination, not a product defect.
+    const { contact } = await findOrCreateContact(waId, undefined, null);
     // Bypass the compliance funnel noise (consent/age-gate) so the judged transcript is
     // about counselling quality, not about whether the scripted persona answered a
     // deterministic yes/no prompt correctly — that path is exercised by real traffic.

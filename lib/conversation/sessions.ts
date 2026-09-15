@@ -13,6 +13,7 @@ import { bandToTemperature } from "@/lib/propensity";
 const PROFILE_FIELDS = [
   "destinationCountry",
   "degreeLevel",
+  "fieldOfStudy",
   "intendedIntake",
   "currentYearOfStudy",
   "testStatus",

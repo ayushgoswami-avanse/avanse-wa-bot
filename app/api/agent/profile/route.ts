@@ -15,6 +15,7 @@ const EDITABLE_STRING_FIELDS = [
   "confirmedName",
   "destinationCountry",
   "degreeLevel",
+  "fieldOfStudy",
   "intendedIntake",
   "currentYearOfStudy",
   "testStatus",

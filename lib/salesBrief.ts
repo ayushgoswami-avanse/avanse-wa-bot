@@ -50,8 +50,8 @@ export function buildSalesBrief(
 
   const journeyBits =
     contact.journey === "DOMESTIC"
-      ? [contact.courseCategory, contact.targetInstitution, contact.intakeOrBatch, contact.employmentStatus]
-      : [contact.destinationCountry, contact.degreeLevel, contact.intendedIntake, contact.currentYearOfStudy];
+      ? [contact.courseCategory, contact.fieldOfStudy, contact.targetInstitution, contact.intakeOrBatch, contact.employmentStatus]
+      : [contact.destinationCountry, contact.degreeLevel, contact.fieldOfStudy, contact.intendedIntake, contact.currentYearOfStudy];
   const journeyLine = journeyBits.filter(Boolean).join(" · ") || "Journey details not yet captured.";
 
   const attributionLine = `${contact.attributionTier ?? "Unresolved"} attribution${

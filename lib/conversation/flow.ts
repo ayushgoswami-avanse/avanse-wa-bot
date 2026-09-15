@@ -55,7 +55,12 @@ const HUMAN_REQUEST_KEYWORDS = [
 // the AI's own attempts to help is what actually triggers a human handover — not the LLM's
 // own say-so, which proved too eager on a single frustrated message (see orchestrator.ts).
 const NEGATIVE_SENTIMENT_ESCALATION_THRESHOLD = 3;
-const ELIGIBILITY_KEYWORDS = ["eligib", "how much can i get", "how much loan", "loan amount", "qualify for"];
+// "loan amount" alone used to be in this list and was too loose — a QA run showed a
+// message that merely contained that phrase in passing ("...confirm you will approve any
+// loan amount...") deterministically short-circuiting straight into the age-gate/
+// eligibility flow, bypassing Guru's own judgment entirely for that turn. The remaining
+// phrases are specific enough to reflect genuine intent to check eligibility.
+const ELIGIBILITY_KEYWORDS = ["eligib", "how much can i get", "how much loan", "qualify for"];
 const HANDOFF_KEYWORDS = ["apply now", "continue application", "proceed with application", "start application", "apply for the loan"];
 const RESOURCE_KEYWORDS = ["resource", "guide", "checklist", "help me decide", "documents needed"];
 const ALUMNI_KEYWORDS = ["alumni", "talk to a student", "connect me with someone who", "senior", "past student"];
@@ -95,6 +100,22 @@ const GURU_GREETING =
   "Hey! I'm Guru 👋 I help students figure out the big stuff — where to study, which course " +
   "actually opens the doors you want, visas, PR pathways, timelines, and how to pay for it " +
   "when you get there.\n\nWhat's on your mind right now?";
+
+// The QR redirect's own opener text (app/api/redirect/[code]/route.ts) — long enough to
+// pass a naive length check, but it's a placeholder, not something Guru should try to answer.
+const QR_PLACEHOLDER_RE = /tap send to start/i;
+const BARE_GREETING_RE = /^(hi+|hello+|hey+|hola|yo|sup|good\s?(morning|afternoon|evening))[\s.!,]*$/i;
+
+/** Distinguishes a genuine opening statement ("MS in CS, Canada, Fall 2026...") from a bare
+ * "hi" or the QR scan's own placeholder text — only the former skips the canned greeting.
+ */
+function isSubstantiveFirstMessage(text: string): boolean {
+  const trimmed = text.trim();
+  if (!trimmed) return false;
+  if (QR_PLACEHOLDER_RE.test(trimmed)) return false;
+  if (BARE_GREETING_RE.test(trimmed)) return false;
+  return trimmed.length >= 12;
+}
 
 function salesConsentPayload(): OutboundPayload {
   return {
@@ -336,8 +357,19 @@ async function handleInboundMessageInStage(
       // Guru just says hello and opens the floor. Profiling now happens inside the
       // conversation (orchestrator's save_student_profile tool), and consent/age attach
       // to the handoff moment — so there is nothing to gate the first reply behind.
-      await send(contact, { kind: "text", body: GURU_GREETING });
+      //
+      // EXCEPT when the first message already has real content: a QA run caught a
+      // student's dense opening message ("MS in CS, Canada, Fall 2026, GRE+IELTS done")
+      // getting the canned greeting while its content sat unanswered for a full turn —
+      // only reaching Guru (and save_student_profile) as chat history on the NEXT reply.
+      // A substantive opener gets answered directly instead.
       await setStage(contact.id, "COUNSELLING");
+      if (isSubstantiveFirstMessage(text)) {
+        const result = await runCounselling(contact, text, sessionId, false);
+        if (result.escalate) await escalateToHuman(contact, classifyEscalationReason(result.escalateReason));
+      } else {
+        await send(contact, { kind: "text", body: GURU_GREETING });
+      }
       return;
     }
 

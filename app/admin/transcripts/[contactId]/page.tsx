@@ -92,6 +92,7 @@ export default async function TranscriptDetailPage({ params }: { params: Promise
                 journey: contact.journey ?? "",
                 destinationCountry: contact.destinationCountry ?? "",
                 degreeLevel: contact.degreeLevel ?? "",
+                fieldOfStudy: contact.fieldOfStudy ?? "",
                 intendedIntake: contact.intendedIntake ?? "",
                 currentYearOfStudy: contact.currentYearOfStudy ?? "",
                 testStatus: contact.testStatus ?? "",

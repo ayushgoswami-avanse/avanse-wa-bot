@@ -182,6 +182,12 @@ model Contact {
   journey               Journey?
   journeyUndecidedAskedAt DateTime?
 
+  // Shared across both branches — a QA pass caught specific subjects/majors ("Computer
+  // Science", "Mechanical Engineering") being mentioned constantly but having nowhere
+  // structured to land: degreeLevel only captures Masters/Bachelors/PhD, and courseCategory
+  // below is domestic-only PG/Skilling/Professional. Neither is "what will they actually study".
+  fieldOfStudy          String?
+
   // Progressive profiling — international branch
   destinationCountry    String?
   degreeLevel           String?

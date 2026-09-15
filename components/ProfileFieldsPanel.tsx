@@ -7,6 +7,7 @@ export type ProfileFieldValues = {
   journey: string;
   destinationCountry: string;
   degreeLevel: string;
+  fieldOfStudy: string;
   intendedIntake: string;
   currentYearOfStudy: string;
   testStatus: string;
@@ -25,6 +26,7 @@ const FIELDS: FieldSpec[] = [
   { key: "journey", label: "Journey", options: ["INTERNATIONAL", "DOMESTIC", "UNDECIDED"] },
   { key: "destinationCountry", label: "Destination", options: ["USA", "UK", "Canada", "Germany", "Australia", "Ireland", "Other"] },
   { key: "degreeLevel", label: "Degree level", options: ["Masters", "Bachelors", "PhD", "Other"] },
+  { key: "fieldOfStudy", label: "Subject/major" },
   { key: "intendedIntake", label: "Intended intake", options: ["Fall 2026", "Spring 2027", "Fall 2027", "Not sure yet"] },
   { key: "currentYearOfStudy", label: "Current year", options: ["2nd year", "3rd year", "4th / final year", "Graduated"] },
   { key: "testStatus", label: "Test status", options: ["Not started", "Preparing", "Given — GRE", "Given — GMAT", "Given — IELTS/TOEFL"] },

@@ -64,6 +64,7 @@ export default async function AgentThreadPage({ params }: { params: Promise<{ co
           journey: contact.journey ?? "",
           destinationCountry: contact.destinationCountry ?? "",
           degreeLevel: contact.degreeLevel ?? "",
+          fieldOfStudy: contact.fieldOfStudy ?? "",
           intendedIntake: contact.intendedIntake ?? "",
           currentYearOfStudy: contact.currentYearOfStudy ?? "",
           testStatus: contact.testStatus ?? "",

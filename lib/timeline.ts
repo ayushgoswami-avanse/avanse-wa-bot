@@ -9,6 +9,7 @@ const FIELD_LABELS: Record<string, string> = {
   college: "College",
   destinationCountry: "Destination",
   degreeLevel: "Degree level",
+  fieldOfStudy: "Subject/major",
   intendedIntake: "Intended intake",
   currentYearOfStudy: "Current year",
   testStatus: "Test status",

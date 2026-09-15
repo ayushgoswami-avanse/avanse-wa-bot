@@ -34,7 +34,11 @@ export function buildLeadFacts(
   ];
 
   if (opts.showFinancials) {
-    facts.push({ label: "Destination", value: orNull(contact.destinationCountry) }, { label: "Degree level", value: orNull(contact.degreeLevel) });
+    facts.push(
+      { label: "Destination", value: orNull(contact.destinationCountry) },
+      { label: "Degree level", value: orNull(contact.degreeLevel) },
+      { label: "Subject/major", value: orNull(contact.fieldOfStudy) }
+    );
   }
 
   facts.push(

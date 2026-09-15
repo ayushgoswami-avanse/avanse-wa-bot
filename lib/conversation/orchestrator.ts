@@ -297,6 +297,13 @@ YOUR TOOLS — pick deliberately, this is what separates you from a chatbot
 - save_student_profile whenever you learn something real. Silently, as a by-product of a good
   conversation — never by interrogating them for it.
 
+These are REAL function calls — invoke them through the actual function-calling mechanism you
+have, never by writing them out as text. Do not write "tool_code", "print(...)", Python-looking
+syntax, JSON tool calls, or a "thought:"/reasoning narration anywhere in your output — none of
+that is a real tool invocation, all of it is visible to the student if you write it, and it has
+happened in production. Your reply is the ONLY thing that reaches them: plain conversational
+text, nothing else, every single time.
+
 HARD RULES
 1. Never invent university data, fees, interest rates, eligibility figures, salaries or deadlines.
    State a fact only if it came from a tool result above, or is genuinely well-established
@@ -364,6 +371,18 @@ function splitReply(raw: string): string[] {
   }
 
   return segments.filter(Boolean);
+}
+
+/** Live-observed failure mode: instead of using the real function-calling mechanism, the
+ * model sometimes narrates a tool call AS TEXT — "tool_code\nprint(default_api.save_
+ * student_profile(...))\nthought\n<reasoning>...<actual reply>" — all as one blob, with no
+ * reliable delimiter between the leaked internals and the real reply (they can run
+ * together with no separating whitespace at all). That makes a safe partial strip
+ * infeasible; this only detects the leak so the caller can reject the whole response
+ * rather than ever forwarding a fragment of it to the student.
+ */
+function hasLeakedToolScaffolding(text: string): boolean {
+  return /\btool_code\b|\btool_outputs?\b|default_api\.|print\(\s*default_api|^\s*thought\s*$/im.test(text);
 }
 
 function classifySentimentFallback(text: string): "POSITIVE" | "NEUTRAL" | "NEGATIVE" {
@@ -555,7 +574,14 @@ export async function generateCounsellingReply(
       }
       const sentiment = args.sentiment?.toUpperCase();
       const parsedSentiment = sentiment === "POSITIVE" || sentiment === "NEUTRAL" || sentiment === "NEGATIVE" ? sentiment : undefined;
-      const segments = splitReply(args.reply ?? "");
+      // Defense in depth: even a properly-invoked submit_reply could theoretically carry
+      // leaked scaffolding inside its own reply argument. Never ship it — the generic
+      // fallback is always safe, unlike guessing where real content ends and a leak begins.
+      const rawReply = args.reply ?? "";
+      const segments = hasLeakedToolScaffolding(rawReply) ? [] : splitReply(rawReply);
+      if (hasLeakedToolScaffolding(rawReply)) {
+        console.log("[orchestrator] leaked tool-call/thought scaffolding detected inside submit_reply's own reply arg");
+      }
       return {
         replySegments: segments.length ? segments : FALLBACK_RESULT.replySegments,
         escalate: !!args.escalate,
@@ -568,8 +594,13 @@ export async function generateCounsellingReply(
     if (functionCalls.length === 0) {
       // Model finished without calling submit_reply at all — use whatever text it
       // produced, and fall back to keyword sentiment since there's no tool args here.
+      // BUT: a live conversation showed this path shipping raw tool-call/chain-of-thought
+      // scaffolding straight to the student ("tool_code\nprint(default_api.save_student_
+      // profile(...))\nthought\n<reasoning>...<actual reply>" as one text blob) — the model
+      // narrated a tool call as text instead of actually invoking it. Never trust response.text
+      // blindly; reject it the same way an empty turn is rejected.
       const text = response.text;
-      if (text) {
+      if (text && !hasLeakedToolScaffolding(text)) {
         console.log("[orchestrator] model replied without calling submit_reply — using response.text and sentiment fallback");
         return {
           replySegments: splitReply(text),
@@ -579,13 +610,22 @@ export async function generateCounsellingReply(
         };
       }
 
-      // Neither a tool call nor text — an empty turn, which Gemini does occasionally after a
-      // tool response. Nudge once for the reply it owes us instead of giving up on the student.
+      // Either empty (Gemini does this occasionally after a tool response) or leaked
+      // scaffolding instead of a real reply — nudge once for the clean message it owes
+      // the student rather than ever giving up on them or shipping raw internals.
       if (turn < MAX_TURNS - 1) {
-        console.log("[orchestrator] empty model turn — nudging for submit_reply");
+        console.log(
+          text
+            ? "[orchestrator] leaked tool-call/thought scaffolding detected in response.text — nudging for a clean reply"
+            : "[orchestrator] empty model turn — nudging for submit_reply"
+        );
         contents.push({
           role: "user",
-          parts: [{ text: "Continue. Call submit_reply now with your message for the student." }],
+          parts: [
+            {
+              text: "Continue. Call submit_reply now with your message for the student — plain conversational text only. Never write code, tool-call syntax, or your own reasoning into the reply; those are not for the student to see.",
+            },
+          ],
         });
         continue;
       }

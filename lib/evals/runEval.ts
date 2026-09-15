@@ -1,4 +1,4 @@
-import { Type } from "@google/genai";
+import { Type, FunctionCallingConfigMode } from "@google/genai";
 import { prisma } from "@/lib/prisma";
 import { getGoogleClient, getGeminiModel } from "@/lib/googleClient";
 import { findOrCreateContact } from "@/lib/contactService";
@@ -151,6 +151,14 @@ async function judgeTranscript(persona: string, contactId: string): Promise<Judg
       `bot's own words as evidence for any bug found.\n\n${transcript}`,
     config: {
       tools: [{ functionDeclarations: [{ name: "submit_judgment", description: "Submit your scored judgment.", parameters: JUDGE_SCHEMA }] }],
+      // Unlike the orchestrator's conversational tools (which the model chooses between,
+      // alongside a free-text reply), this call exists ONLY to extract structured
+      // judgment — there is nothing else it could legitimately do. Live-verified: without
+      // forcing this, the model answered in plain prose on 5/5 personas and never once
+      // invoked the tool, silently producing "unmeasured" scores for every eval run.
+      toolConfig: {
+        functionCallingConfig: { mode: FunctionCallingConfigMode.ANY, allowedFunctionNames: ["submit_judgment"] },
+      },
     },
   });
   await recordModelCall({

@@ -211,7 +211,16 @@ export async function runEvalPanel(personas: PersonaScript[] = DEFAULT_PERSONAS,
     // Gemini spend never blends into the dashboard's production cost KPIs.
     const judged = await runInEvalContext(async () => {
       for (const [i, text] of script.messages.entries()) {
-        await handleInboundMessage(contact.id, { metaMessageId: `eval-${run.id}-${i}`, text });
+        const metaMessageId = `eval-${run.id}-${i}`;
+        // handleInboundMessage only runs the AI/state-machine reaction to a turn — it does
+        // NOT persist the inbound Message itself. The real webhook and web-mirror routes
+        // both write that row first (see app/api/web-mirror/send/route.ts); live-verified
+        // this eval harness skipping it meant the judge only ever saw the bot's half of
+        // every transcript, silently downgrading every score's reliability.
+        await prisma.message.create({
+          data: { contactId: contact.id, metaMessageId, direction: "INBOUND", kind: "TEXT", body: text, deliveryStatus: "received" },
+        });
+        await handleInboundMessage(contact.id, { metaMessageId, text });
       }
       return judgeTranscript(script.persona, contact.id);
     });
